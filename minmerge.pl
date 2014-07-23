@@ -225,6 +225,8 @@ if ($s_info)
 	my $cflags = get_minmergevar("CFLAGS");
 	my $cxxflags = get_minmergevar("CXXFLAGS");
 	my $makeopts = get_minmergevar("MAKEOPTS");
+	my $distdir = get_minmergevar("DISTDIR");
+	my $distdir_w32 = posix2w32path($distdir);
 	my $perl_path = get_minmergevar("PERL_PATH");
 	my $perl_path_w32 = posix2w32path($perl_path);
 	my $python_path = get_minmergevar("PYTHON_PATH");
@@ -239,6 +241,7 @@ if ($s_info)
 	print "CFLAGS: $cflags\n";
 	print "CXXFLAGS: $cxxflags\n";
 	print "MAKEOPTS: $makeopts\n";
+	print "DISTDIR: $distdir => $distdir_w32\n";
 	print "FEATURES: $features\n";
 	print "PERL_PATH: $perl_path => $perl_path_w32\n";
 	print "PYTHON_PATH: $python_path => $python_path_w32\n";
