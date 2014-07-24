@@ -304,6 +304,11 @@ foreach (@pkg_atoms)
 }
 if ($have_set)
 {
+	if ($s_unmerge)
+	{
+		print "You can't delete this package set!\n";
+		exit 1;
+	}
 	$s_oneshot = 1;
 	@pkg_atoms = @set_list;
 }
@@ -467,7 +472,6 @@ foreach $xbuild (@all_xbuilds)
 	$current++;
 	%xbuild_info = xbuild_info($xbuild);
 	print ">>> Emerging ($current of " . ($#all_xbuilds + 1) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
-	# TODO: redirect XBUILD output to log.
 	system($^X, $XBUILD, $xbuild, $xbuild_cmds);
 	if ($?)
 	{
@@ -559,7 +563,7 @@ sub get_xbuild_vars(@)
 	my @lines;
 	my @res;
 	my $value;
-	my ($fh, $fname) = tempfile();
+	my ($fh, $fname) = tempfile(TMPDIR => 1, SUFFIX => ".sh");
 	$fname =~ tr/\\/\//;
 
 	print $fh "#!/bin/sh\n\n";
@@ -576,6 +580,7 @@ sub get_xbuild_vars(@)
 	if ($? != 0)
 	{
 		print "Fatal error: can't execute file $fname!\n";
+		unlink $fname;
 		return $value;
 	}
 	foreach (@lines)

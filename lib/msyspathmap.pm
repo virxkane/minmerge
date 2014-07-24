@@ -34,7 +34,7 @@ use strict;
 require Exporter;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(posix2w32path);
+our @EXPORT = qw(posix2w32path w32path2posix);
 
 my %mounts_map;
 
@@ -67,7 +67,7 @@ sub posix2w32path($)
 	my ($path) = @_;
 	my $len;
 	my $frag;
-	my $w32path = undef;
+	my $res_path = undef;
 	my ($unix_path, $w32_path);
 
 	# already win32 path
@@ -81,14 +81,14 @@ sub posix2w32path($)
 	{
 		if ($path eq $unix_path)
 		{
-			$w32path = $w32_path;
+			$res_path = $w32_path;
 			last;
 		}
 		$frag = $unix_path . "/";
 		$len = length($frag);
 		if (substr($path, 0, $len) eq $frag)
 		{
-			$w32path = $w32_path . "/" . substr($path, $len);
+			$res_path = $w32_path . "/" . substr($path, $len);
 			last;
 		}
 	}
@@ -96,11 +96,72 @@ sub posix2w32path($)
 	{
 		;
 	}
-	if (!$w32path)
+	if (!$res_path)
 	{
-		$w32path = $mounts_map{"/"} . $path;
+		$res_path = $mounts_map{"/"} . $path;
 	}
-	return $w32path;
+	return $res_path;
+}
+
+sub w32path2posix($)
+{
+	my ($path) = @_;
+	my $len;
+	my $frag;
+	my $res_path = undef;
+	my ($unix_path, $w32_path);
+
+	# already unix path
+	#return $path if $path =~ m/^\/.*$/;
+
+	$path =~ tr/\\/\//;
+	$path = lc($path);
+	if (!scalar(%mounts_map))
+	{
+		init_mountsmap();
+	}
+	foreach $unix_path ('/mingw', '/tmp', '/', '/usr')
+	{
+		$w32_path = $mounts_map{$unix_path};
+		next if !defined($w32_path);
+		$w32_path = lc($w32_path);
+		if ($path eq $w32_path)
+		{
+			$res_path = $unix_path;
+			last;
+		}
+		$frag = $w32_path . '/';
+		$len = length($frag);
+		if (substr($path, 0, $len) eq $frag)
+		{
+			$res_path = $unix_path . "/" . substr($path, $len);
+			last;
+		}
+	}
+	if (!$res_path)
+	{
+		while (($unix_path, $w32_path) = each(%mounts_map))
+		{
+			$w32_path = lc($w32_path);
+			if ($path eq $w32_path)
+			{
+				$res_path = $unix_path;
+				last;
+			}
+			$frag = $w32_path . '/';
+			$len = length($frag);
+			if (substr($path, 0, $len) eq $frag)
+			{
+				$res_path = $unix_path . "/" . substr($path, $len);
+				last;
+			}
+		}
+		while (each(%mounts_map))
+		{
+			;
+		}
+	}
+	return $res_path;
 }
 
 1;
