@@ -9,24 +9,23 @@ xbuild - Various usefull function to work with xbuild files.
 
 =head1 SYNOPSIS
 
-    require "<custom libs path>/shellscrip.pm";
+	require "<custom libs path>/shellscrip.pm";
 	import shellscript;
-    require "<custom libs path>/pkg_version.pm";
+	require "<custom libs path>/pkg_version.pm";
 	import pkg_version;
-    require "<custom libs path>/pkgdb.pm";
+	require "<custom libs path>/pkgdb.pm";
 	import pkgdb;
-    require "<custom libs path>/xbuild.pm";
+	require "<custom libs path>/xbuild.pm";
 	import xbuild;
-	
-    setshell("c:/mingw/msys/1.0/bin/sh.exe");
+
+	setshell("c:/mingw/msys/1.0/bin/sh.exe");
 	set_minmerge("c:/mingw/msys/1.0/build/minmerge");
 	@var_list = get_xbuild_vars("SRC_URI");
 
 
 =head1 DESCRIPTION
 
-These routines allow you to run various script or shell commands.
-But this scripts/commands must be non interactive, i.e. output only!
+These routines allow you to obtain some usefull information from xbuild files.
 
 
 =cut
