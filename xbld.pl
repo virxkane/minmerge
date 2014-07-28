@@ -9,9 +9,15 @@ use 5.006;
 use warnings;
 
 use File::Temp qw/tempfile/;
+use File::Basename qw/basename/;
+use IPC::Open3;
+use Time::Local;
+use Cwd;
 
 sub script_and_run_command($$$);
 sub inject_part($$);
+sub src_uri_list2hash(@);
+sub fetch_file($$;$);
 
 if (scalar(@ARGV) < 2)
 {
@@ -80,18 +86,65 @@ require "$MINMERGE_PATH/lib/pkg_version.pm";
 import pkg_version;
 require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
+require "$MINMERGE_PATH/lib/xbuild.pm";
+import xbuild;
 
 shellscript::setshell($SHELL);
-
 $MINMERGE_PATH = posix2w32path($MINMERGE_PATH);
+xbuild::set_minmerge($MINMERGE_PATH);
+
+# minmerge config vars:
+my $prefix = get_minmerge_configval("PREFIX");
+my $prefix_w32 = posix2w32path($prefix);
+my $pkgdbbase = $prefix_w32 . "/var/db/pkg";
+#my $portdir = get_minmerge_configval("PORTDIR");
+#my $portdir_w32 = posix2w32path($portdir);
+my %features;
+{
+	my $str = get_minmerge_configval("FEATURES");
+	$str =~ s/\s*(.*)\s*/$1/;
+	$str =~ s/\s+/ /;
+	foreach (split(/ /, $str))
+	{
+		$features{$_} = 1;
+	}
+}
+my $distdir = get_minmerge_configval("DISTDIR");
+my @distdirs;
+$distdirs[0] = $distdir;
+$distdirs[1] = get_minmerge_configval("DISTDIR2");
+$distdirs[2] = get_minmerge_configval("DISTDIR3");
+$distdirs[3] = get_minmerge_configval("DISTDIR4");
+$distdirs[4] = get_minmerge_configval("DISTDIR5");
+$distdirs[5] = get_minmerge_configval("DISTDIR6");
+$distdirs[6] = get_minmerge_configval("DISTDIR7");
+$distdirs[7] = get_minmerge_configval("DISTDIR8");
+$distdirs[8] = get_minmerge_configval("DISTDIR9");
+$distdir = posix2w32path($distdir);
+my @source_mirrors;
+{
+	my $str = get_minmerge_configval("SOURCE_MIRRORS");
+	foreach (split(/\s+/, $str))
+	{
+		push(@source_mirrors, $_);
+	}
+}
+my $tmpdir = get_minmerge_configval("TMPDIR");
+$tmpdir = posix2w32path($tmpdir);
 
 # main
 my $xbuild;
 my %xbuild_info;
+my %restrict;
 my $cmds;
 my @commands;
 my $cmd;
 my $ret;
+
+my $workdir;
+my $workdir_temp;
+my %src_uri_hash;
+my @A;
 
 $xbuild = shift;
 {
@@ -113,28 +166,25 @@ $cmds =~ s/^\s*(.*)\s*$/$1/;
 $cmds =~ s/\s+/ /g;
 @commands = split(/ /, $cmds);
 
-print "script: $xbuild\n";
-print "commands: @commands\n";
+#print "script: $xbuild\n";
+#print "commands: @commands\n";
+
+# fill restrict hash
+{
+	my @lines = xbuild::get_xbuild_vars($xbuild, "RESTRICT");
+	if (@lines)
+	{
+		my $line = join(" ", @lines);
+		$line =~ s/\s*(.*)\s*/$1/;
+		$line =~ s/\s+/ /;
+		foreach (split(/ /, $line))
+		{
+			$restrict{$_} = 1;
+		}
+	}
+}
 
 my %cmds;
-#~ my $cmd_clean = undef;
-#~ my $cmd_setup = undef;
-#~ my $cmd_fetch = undef;
-#~ my $cmd_unpack = undef;
-#~ my $cmd_prepare = undef;
-#~ my $cmd_configure = undef;
-#~ my $cmd_compile = undef;
-#~ my $cmd_test = undef;
-#~ my $cmd_install = undef;
-#~ my $cmd_preinst = undef;
-#~ my $cmd_qmerge = undef;
-#~ my $cmd_postinst = undef;
-#~ my $cmd_merge = undef;
-#~ my $cmd_unmerge = undef;
-#~ my $cmd_prerm = undef;
-#~ my $cmd_postrm = undef;
-#~ my $cmd_package = undef;
-
 foreach (@commands)
 {
 	if ("clean" eq $_) { $cmds{clean} = 1; }
@@ -177,9 +227,102 @@ foreach (@commands)
 
 %xbuild_info = pkgdb::xbuild_info($xbuild);
 
+$workdir = "$tmpdir/$xbuild_info{pn}-build";
+$workdir_temp = "$workdir/temp";
+
+# SRC_URI & A
+{
+	my @src_uri = ();
+	@A = ();
+	my ($uri, $file);
+	my @lines = xbuild::get_full_xbuild_vars($xbuild, "SRC_URI");
+	if (@lines)
+	{
+		my $line = join(" ", @lines);
+		$line =~ s/^\s*(.*)\s*$/$1/;
+		foreach (split(/\s+/, $line))
+		{
+			push(@src_uri, $_);
+		}
+		%src_uri_hash = src_uri_list2hash(@src_uri);
+		while (($uri, $file) = each(%src_uri_hash))
+		{
+			push(@A, $file);
+		}
+	}
+}
+
+# Perform commands
+
 if ($cmds{fetch})
 {
-	$ret = script_and_run_command($xbuild, 'fetch', undef);
+	# 1. check dist files
+	my ($uri, $file);
+	my $adir;
+	my @_st;
+	my $found;
+	my $found_all = 1;
+	my %dln_list;
+	#foreach $file (@A)
+	while (($uri, $file) = each(%src_uri_hash))
+	{
+		# TODO: skip repeated files
+		$found = 0;
+		foreach $adir (@distdirs)
+		{
+			next if !$adir;
+			@_st = stat("$adir/$file");
+			if (@_st)
+			{
+				if ($_st[7] != 0)
+				{
+					# TODO: also check fingerprint
+					$found = 1;
+					print "$file  OK\n";
+				}
+			}
+		}
+		if (!$found)
+		{
+			$dln_list{$uri} = $file;
+			$found_all = 0;
+		}
+	}
+	if (!$found_all && $restrict{fetch})
+	{
+		print "This xbuild have fetch restrict, you must download this files manualy:\n";
+		while (($uri, $file) = each(%src_uri_hash))
+		{
+			print "   $uri -> $distdir/$file\n";
+		}
+		exit 1;
+	}
+	# 2. download ommited/broken files
+	while (($uri, $file) = each(%dln_list))
+	{
+		# firstly download from @source_mirrors
+		$ret = 0;
+		if (!$restrict{mirror})
+		{
+			my $mirror;
+			my $muri;
+			foreach $mirror (@source_mirrors)
+			{
+				$muri = $mirror . '/distfiles/' . $file;
+				$ret = fetch_file($distdir, $muri);
+				last if $ret;
+			}
+		}
+		if (!$ret)
+		{
+			$ret = fetch_file($distdir, $uri, $file);
+			if (!$ret)
+			{
+				print "Fetch $file failed!\n";
+				exit 1;
+			}
+		}
+	}
 }
 if ($cmds{setup})
 {
@@ -209,6 +352,10 @@ if ($cmds{test})
 if ($cmds{install})
 {
 	$ret = script_and_run_command($xbuild, 'install', 1);
+	if (!$restrict{strip})
+	{
+		# add: strip executables
+	}
 }
 if ($cmds{package})
 {
@@ -220,6 +367,7 @@ if ($cmds{preinst})
 }
 if ($cmds{qmerge})
 {
+	# rewrite in perl (here)
 	$ret = script_and_run_command($xbuild, 'qmerge', 1);
 }
 if ($cmds{postinst})
@@ -232,6 +380,7 @@ if ($cmds{prerm})
 }
 if ($cmds{unmerge})
 {
+	# rewrite in perl (here)
 	$ret = script_and_run_command($xbuild, 'unmerge', undef);
 }
 if ($cmds{postrm})
@@ -272,6 +421,11 @@ sub script_and_run_command($$$)
 	# you can redefine this variables in xbuild file.
 	print $fh "SOURCES_DIR=\${PF}\n";
 	print $fh "source ${MINMERGE_PATH}/lib/xbld/deffuncs.sh\n";
+	print $fh "A=";
+	foreach (@A)
+	{
+		print $fh $_ . ' ';
+	} print $fh "\n";
 	print $fh "source $xbuild\n";
 	print $fh "if [ \"x\${CMAKE_SOURCES_DIR}\" = \"x\" ]\n";
 	print $fh "then\n";
@@ -317,4 +471,240 @@ sub inject_part($$)
 		print "Can't open part \'${part}\'!\n";
 		exit 1;
 	}
+}
+
+# return hash with following pairs:
+# uri => filename
+# input - uri list like this:
+# http://foo.bar.com/file.tgz?download -> file.tgz
+# http://foo.bar.com/file.tbz
+sub src_uri_list2hash(@)
+{
+	my %res_hash;
+	my $prev;
+	my $have_arrow = 0;
+	my $uri;
+	foreach (@_)
+	{
+		if ("->" eq $_)
+		{
+			$have_arrow = 1;
+			if (!$prev)
+			{
+				print "Before '->' you must specify URI!\n";
+				return %res_hash;
+			}
+			$uri = $prev;
+		}
+		else
+		{
+			if ($have_arrow)
+			{
+				$res_hash{$uri} = $_;
+				$have_arrow = 0;
+			}
+			else
+			{
+				$res_hash{$_} = File::Basename::basename($_);
+				$prev = $_;
+			}
+		}
+	}
+	if ($have_arrow)
+	{
+		print "After '->' you must specify file!\n";
+	}
+	return %res_hash;
+}
+
+sub strMonth2number($)
+{
+	my ($str) = @_;
+	my $res = -1;
+	my @month = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec');
+	for (my $i = 0; $i < 12; $i++)
+	{
+		if ($str =~ m/$month[$i]/i)
+		{
+			$res = $i + 1;
+			last;
+		}
+	}
+	return $res;
+}
+
+# input: string
+# return unix time
+sub str2date($)
+{
+	# строки вида:
+	#   1) MS IIS format
+	#     07-11-06  02:08PM
+	#     08-07-06  08:24AM
+	#   2) short format
+	#     Jun 28 21:08
+	#     Sep 13  2005
+	#     Feb 22 15:23
+	#   3) long format
+	#     Wed, 28 Jun 2006 21:08:43 GMT
+	#     Tue, 13 Sep 2005 04:07:24 GMT
+	my ($str) = @_;
+	my @list = split(/\s+/, $str);
+	my $count = @list;
+	my $res = -1;
+	
+	## char* ptr;
+	my $idx;
+	my ($hour, $min, $sec);
+	
+	if ($count != 2 && $count != 3 && $count != 6)
+	{
+		return -1;
+	}
+	my $cur_t = time();
+	my @cur_tm = localtime($cur_t);
+	my @lt;
+	if ($count == 2)				# MS IIS format
+	{
+		my @dt_list = split(/-/, $list[0]);
+		my $dt_count = @dt_list;
+		if ($dt_count == 3 && $dt_list[0] =~ m/\d+/ && $dt_list[1] =~ m/\d+/ && $dt_list[2] =~ m/\d+/)
+		{
+			# fill date
+			$lt[3] = $dt_list[1];		# mday
+			$lt[4] = $dt_list[0] - 1;	# month
+			$lt[5] = $dt_list[2];		# year
+			if ($lt[5] < 30)
+			{
+				$lt[5] += 2000;
+			}
+			else
+			{
+				$lt[5] += 1900;
+			}
+			# fill time
+			$idx = index($list[1], ':');
+			if ($idx > 0)
+			{
+				$lt[2] = substr($list[1], 0, $idx);		# hour
+				$lt[1] = substr($list[1], $idx + 1, 2);	# min
+				if ($idx + 3 < length($list[1]))
+				{
+					my $_str = substr($list[1], $idx + 3);
+					$lt[2] += 12 if $_str eq 'PM';
+				}
+			}
+			$lt[0] = 0;
+			$res = timelocal(@lt);
+		}
+	}
+	elsif ($count == 3)				# short format
+	{
+		$lt[4] = strMonth2number($list[0]) - 1;  # month
+		$lt[3] = $list[1];				# mday
+		$idx = index($list[2], ':');
+		if ($idx > 0)
+		{
+			$lt[5] = $cur_tm[5] + 1900;
+			$lt[2] = substr($list[2], 0, $idx);
+			$lt[1] = substr($list[2], $idx + 1);
+			$lt[0] = 0;
+			# test year field
+			my $tt = timelocal(@lt);
+			$lt[5] =-1 if $tt > $cur_t;
+		}
+		else
+		{
+			$lt[5] = $list[2];
+			$lt[2] = 0;
+			$lt[1] = 0;
+			$lt[0] = 0;
+		}
+		$res = timelocal(@lt);
+	}
+	elsif ($count == 6)		# long format
+	{
+		$lt[3] = $list[1];
+		$lt[4] = strMonth2number($list[2]) - 1;
+		$lt[5] = $list[3];
+		my @tm_list = split(/:/, $list[4]);
+		my $tm_count = @tm_list;
+		if ($tm_count == 3)
+		{
+			$lt[2] = $tm_list[0];
+			$lt[1] = $tm_list[1];
+			$lt[0] = $tm_list[2];
+			if ($list[5] =~ m/GMT/i)
+			{
+				$res = timegm(@lt);
+			}
+			else
+			{
+				# to-do: fix conversion with other timezone
+				$res = timelocal(@lt);
+			}
+		}
+	}
+	return $res;
+}
+
+# arguments: dir, uri, file
+# dir - where file saved
+# uri - URL of file
+# file - target file name (optional)
+# return value: 1 if successfull, 0 - otherwise.
+sub fetch_file($$;$)
+{
+	my ($destdir, $uri, $fname) = @_;
+	my $ret;
+	if ($fname)
+	{
+		my $targ = $destdir . '/' . $fname;
+		my $timestamp = -1;
+		# firstly get timestamp
+		local *CHLD_OUT;
+		local *CHLD_ERR;
+		local *CHLD_IN;
+		my $pid;
+		my @lines;
+		my $line;
+		$pid = IPC::Open3::open3(\*CHLD_IN, \*CHLD_OUT, \*CHLD_ERR, "wget", "--server-response", "--spider", "$uri");
+		$line = <CHLD_OUT>;
+		$line = <CHLD_ERR> if !$line;
+		while ($line)
+		{
+			chomp $line;
+			push(@lines, $line);
+			$line = <CHLD_OUT>;
+			$line = <CHLD_ERR> if !$line;
+		}
+		waitpid($pid, 0);
+		close(CHLD_ERR);
+		close(CHLD_OUT);
+		close(CHLD_IN);
+		foreach (@lines)
+		{
+			if (m/^\s*Last-Modified: (.*)$/)
+			{
+				$timestamp = str2date($1);
+			}
+		}
+		#$ret = $? >> 8;
+		# And finaly download file
+		$ret = system("wget $uri -O $targ");
+		if ($ret == 0)
+		{
+			utime($timestamp, $timestamp, $targ);
+		}
+	}
+	else
+	{
+		my $cwd_saved = getcwd();
+		if (chdir($destdir))
+		{
+			$ret = system("wget -c $uri");
+			chdir($cwd_saved);
+		}
+	}
+	return $ret == 0;
 }

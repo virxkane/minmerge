@@ -458,7 +458,7 @@ sub xbuild_info($)
 	my %parsed_ver;
 	my $tstr;
 	my ($filename, $path, $suffix) = fileparse($file, q/\.\w*/);
-	my ($idx, $pidx);
+	my $idx;
 
 	if ($suffix =~ m/^\.(\w*)$/)
 	{
@@ -469,18 +469,16 @@ sub xbuild_info($)
 		return %empty;
 	}
 
-	$pidx = -1;
 	$idx = index($filename, '-');
-	while ($idx > 0)
+	if ($idx > 0 && substr($filename, $idx + 1, 1) =~ m/\D/)
 	{
-		$pidx = $idx;
 		$idx = index($filename, '-', $idx + 1);
 	}
 	# failed...
-	return %empty if $pidx == -1;
+	return %empty if $idx <= 0;
 
-	$res{pn} = substr($filename, 0, $pidx);
-	$res{pvr} = substr($filename, $pidx + 1);
+	$res{pn} = substr($filename, 0, $idx);
+	$res{pvr} = substr($filename, $idx + 1);
 	$idx = index($res{pvr}, '-');
 	if ($idx > 0)
 	{

@@ -30,6 +30,4 @@ then
 	done
 fi
 make_content || die
-# to-do: register in world only if ommited --oneshot flag or this xbuild - dependency
-#register_in_world
 cp "${XBUILD}" "${PKGDBDIR}/" || die

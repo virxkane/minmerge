@@ -10,13 +10,8 @@ use warnings;
 
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
-use File::Temp qw/tempfile/;
 
 # forward function declarations
-sub get_minmergevar($);
-sub get_xbuild_vars(@);
-sub get_depends($);
-sub get_rdepends($);
 sub calc_deps($;$$$);
 sub check_conflicted_deps(@);
 sub remove_duplicates(@);
@@ -188,10 +183,12 @@ require "$MINMERGE_PATH/lib/msyspathmap.pm";
 import msyspathmap;
 require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
+require "$MINMERGE_PATH/lib/xbuild.pm";
+import xbuild;
 	
 shellscript::setshell($SHELL);
-	
 $MINMERGE_PATH = posix2w32path($MINMERGE_PATH);
+xbuild::set_minmerge($MINMERGE_PATH);
 
 # main
 
@@ -211,25 +208,25 @@ my $xbuild_cmds;
 my @all_xbuilds;	# build scripts for specified atoms & dependencies
 my $all_dep_xbuilds;
 
-$prefix = get_minmergevar("PREFIX");
+$prefix = get_minmerge_configval("PREFIX");
 $prefix_w32 = posix2w32path($prefix);
 $pkgdbbase = $prefix_w32 . "/var/db/pkg";
-$portdir = get_minmergevar("PORTDIR");
+$portdir = get_minmerge_configval("PORTDIR");
 $portdir_w32 = posix2w32path($portdir);
-$features = get_minmergevar("FEATURES");
+$features = get_minmerge_configval("FEATURES");
 
 if ($s_info)
 {
-	my $chost = get_minmergevar("CHOST");
-	my $cbuild = get_minmergevar("CBUILD");
-	my $cflags = get_minmergevar("CFLAGS");
-	my $cxxflags = get_minmergevar("CXXFLAGS");
-	my $makeopts = get_minmergevar("MAKEOPTS");
-	my $distdir = get_minmergevar("DISTDIR");
+	my $chost = get_minmerge_configval("CHOST");
+	my $cbuild = get_minmerge_configval("CBUILD");
+	my $cflags = get_minmerge_configval("CFLAGS");
+	my $cxxflags = get_minmerge_configval("CXXFLAGS");
+	my $makeopts = get_minmerge_configval("MAKEOPTS");
+	my $distdir = get_minmerge_configval("DISTDIR");
 	my $distdir_w32 = posix2w32path($distdir);
-	my $perl_path = get_minmergevar("PERL_PATH");
+	my $perl_path = get_minmerge_configval("PERL_PATH");
 	my $perl_path_w32 = posix2w32path($perl_path);
-	my $python_path = get_minmergevar("PYTHON_PATH");
+	my $python_path = get_minmerge_configval("PYTHON_PATH");
 	my $python_path_w32 = posix2w32path($python_path);
 	print "minmerge path: $MINMERGE_PATH\n";
 	print "msys path: $MSYS_PATH\n";
@@ -519,82 +516,6 @@ foreach $xbuild (@all_xbuilds)
 
 
 # functions
-
-sub get_minmergevar($)
-{
-	my ($varname) = @_;
-	my @lines;
-	my $value = undef;
-	my ($fh, $fname) = tempfile();
-	$fname =~ tr/\\/\//;
-
-	print $fh "#!/bin/sh\n\n";
-	print $fh "source $MINMERGE_PATH/etc/defaults.conf\n";
-	print $fh "source $MINMERGE_PATH/etc/make.conf\n";
-	print $fh "echo \$$varname\n";
-	close($fh);
-
-	@lines = run_shellscript($fname);
-	if ($? != 0)
-	{
-		print "Fatal error: can't execute file $fname!\n";
-		return $value;
-	}
-	$value = $lines[0];
-	# cleanup
-	unlink $fname;
-	return $value;
-}
-
-sub get_depends($)
-{
-	return get_xbuild_vars($_[0], 'DEPEND', 'RDEPEND');
-}
-
-sub get_rdepends($)
-{
-	return get_xbuild_vars($_[0], 'RDEPEND');
-}
-
-sub get_xbuild_vars(@)
-{
-	my $xbuild = shift;
-	my @vars = @_;
-	my @lines;
-	my @res;
-	my $value;
-	my ($fh, $fname) = tempfile(TMPDIR => 1, SUFFIX => ".sh");
-	$fname =~ tr/\\/\//;
-
-	print $fh "#!/bin/sh\n\n";
-	print $fh "source $MINMERGE_PATH/etc/defaults.conf\n";
-	print $fh "source $MINMERGE_PATH/etc/make.conf\n";
-	print $fh "source $xbuild\n";
-	foreach (@vars)
-	{
-		print $fh "echo \$$_\n";
-	}
-	close($fh);
-
-	@lines = run_shellscript($fname);
-	if ($? != 0)
-	{
-		print "Fatal error: can't execute file $fname!\n";
-		unlink $fname;
-		return $value;
-	}
-	foreach (@lines)
-	{
-		# trim
-		s/^\s*(.*)\s*/$1/;
-		# simplify whitespaces
-		s/\s+/ /;
-		push @res, split if $_;
-	}
-	# cleanup
-	unlink $fname;
-	return @res;
-}
 
 # Calculate dependencies for specified build script.
 # return list of build scripts for noninstalled dependents packages.

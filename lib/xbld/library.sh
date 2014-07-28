@@ -27,12 +27,7 @@ PKG="${PKGDIR}/${PF}.bin.tar.xz"
 DISTDIRS="${DISTDIR} ${DISTDIR2} ${DISTDIR3} ${DISTDIR4} ${DISTDIR5}
 			${DISTDIR6} ${DISTDIR7} ${DISTDIR8} ${DISTDIR9}"
 
-A=""
-for uri in ${SRC_URI}
-do
-	A="${A} "`basename ${uri}`
-done
-unset -v uri
+# ${A} writen in xbld.pl
 
 w32path_posix()
 {
@@ -81,137 +76,6 @@ mmkdir()
 	install -d $1
 }
 
-is_sf_net()
-{
-	echo $1 | grep "^http://sourceforge.net/.*" > /dev/null 2>&1
-	return $?
-}
-
-fetch()
-{
-	if echo "${RESTRICT}" | grep "fetch" > /dev/null 2>&1
-	then
-		die "fetch restricted!"
-		return
-	fi
-	local pwd1=`pwd`
-	local afile=$1
-	test "x${afile}" = "x" && die "Invalid URL!"
-	cd ${DISTDIR} || die "Can't cd to ${DISTDIR}!"
-	local tmp_url=
-	local tmp_afile=
-	local url=
-	if echo "${RESTRICT}" | grep "mirror" > /dev/null 2>&1
-	then
-		for tmp_url in ${SRC_URI}
-		do
-			tmp_afile=`basename ${tmp_url}`
-			if test "x${tmp_afile}" = "x${afile}"
-			then
-				url=${tmp_url}
-			fi
-		done
-		if is_sf_net "${url}"
-		then
-			url="${url}/download"
-		fi
-		wget -t 3 -N "${url}"
-		if test $? -ne 0
-		then
-			die "fetch ${afile} failed!"
-		fi
-	else
-		local mirror=
-		local mirror_ind=1
-		local mirrors_count=0
-		local ind=1
-		for mirror in ${SOURCE_MIRRORS}
-		do
-			mirrors_count=`expr ${mirrors_count} + 1`
-		done
-		for mirror in ${SOURCE_MIRRORS}
-		do
-			break
-		done
-		local url=${mirror}/distfiles/${afile}
-		local last_url="no"
-		while test "x${url}" != "x"
-		do
-			wget -t 3 -N "${url}"
-			if test $? -eq 0
-			then
-				url=""
-			else
-				if test "x${last_url}" = "xyes"
-				then
-					die "fetch ${afile} failed!"
-				fi
-				if test ${mirror_ind} -lt ${mirrors_count}
-				then
-					ind=1
-					for mirror in ${SOURCE_MIRRORS}
-					do
-						if test ${ind} -gt ${mirror_ind}
-						then
-							mirror_ind=${ind}
-							break
-						fi
-						ind=`expr ${ind} + 1`
-					done
-					url=${mirror}/distfiles/${afile}
-				else
-					if test "x${last_url}" == "xyes"
-					then
-						url=""
-					else
-						for tmp_url in ${SRC_URI}
-						do
-							tmp_afile=`basename ${tmp_url}`
-							if test "x${tmp_afile}" = "x${afile}"
-							then
-								url=${tmp_url}
-								if is_sf_net "${url}"
-								then
-									url="${url}/download"
-								fi
-								last_url="yes"
-							fi
-						done
-					fi
-				fi
-			fi
-		done
-	fi
-	cd ${pwd1} || die "Can't return to last current directory!"
-}
-
-check_files()
-{
-	local afile=
-	local adir=
-	local found=
-	for afile in $A
-	do
-		found=0
-		for adir in $DISTDIRS
-		do
-			if [ -f ${adir}/${afile} ]
-			then
-				local afile_sz=`ls -l ${adir}/${afile} | awk '{print $5}'`
-				if [ ${afile_sz} -ge 0 ]
-				then
-					found=1
-				fi
-			fi
-		done
-		if [ $found -eq 0 ]
-		then
-			fetch ${afile}
-		fi
-	done
-	return 0
-}
-
 find_srcpackage()
 {
 	local tmp=""
@@ -252,17 +116,7 @@ unpack_tar()
 unpack_zip()
 {
 	ebegin "Unpacking $1 ... "
-	local tmp=""
-	local f=""
-	local adir=""
-	for adir in $DISTDIRS
-	do
-		tmp="${adir}/$1"
-		if [ -e "${tmp}" ]
-		then
-			f="${tmp}"
-		fi
-	done
+	local f=`find_srcpackage $1`
 	unzip "${f}" > /dev/null 2>&1
 	if [ $? -eq 0 ]
 	then
@@ -275,27 +129,14 @@ unpack_zip()
 unpack_copy()
 {
 	ebegin "Unpacking $1 ... "
-	local tmp=""
-	local f=""
-	local adir=""
-	local ret=1
-	for adir in $DISTDIRS
-	do
-		tmp="${adir}/$1"
-		if [ -e "${tmp}" ]
-		then
-			f="${tmp}"
-		fi
-	done
+	local f=`find_srcpackage $1`
 	cp -p "${f}" .
 	if [ $? -eq 0 ]
 	then
 		eend "OK"
-		ret=0
 	else
 		eerror "failed"
 	fi
-	return $ret
 }
 
 unpack_one()
@@ -538,54 +379,6 @@ emake_install()
 	else
 		eerror "make install failed!"
 	fi
-}
-
-#~ cleanup()
-#~ {
-	#~ if [ -d "${WORKDIR}" ]
-	#~ then
-		#~ ebegin "Cleaning \"${WORKDIR}\" ... "	
-		#~ cd "${TMPDIR}"
-		#~ rm -rf "${WORKDIR}"
-		#~ if [ $? -eq 0 ]
-		#~ then
-			#~ eend "OK"
-		#~ else
-			#~ eerror "failed"
-		#~ fi
-	#~ fi
-#~ }
-
-strip_package()
-{
-	# to-do: rewrite in perl!
-	einfo "Strip files in package..."
-	local bfile=
-	local tst=
-	for file in `cat "${TMPCONT}"`
-	do
-		bfile=`basename $file`
-		tst=`echo "$bfile" | grep ".*\.exe$\|.*\.dll$"`
-		if [ "$tst" = "$bfile" ]
-		then
-			tst=`echo "$bfile" | grep "^.*[1234567890]d.dll$"`
-			if [ "x${tst}" = "x" ]
-			then
-				strip --strip-unneeded "${INSTDIR}/$file"
-				echo "	$file"
-			fi
-		fi
-		tst=`echo "$bfile" | grep ".*\.a$\|.*\.o$"`
-		if [ "$tst" = "$bfile" ]
-		then
-			tst=`echo "$bfile" | grep "^lib.*[1234567890]d\.a$\|^lib.*dll\.a$"`
-			if [ "x${tst}" = "x" ]
-			then
-				strip --strip-debug "${INSTDIR}/$file"
-				echo "	$file"
-			fi
-		fi
-	done
 }
 
 make_tmpcontent()
