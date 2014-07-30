@@ -124,18 +124,17 @@ my %features;
 		$features{$_} = 1;
 	}
 }
-my $distdir = get_minmerge_configval("DISTDIR");
+my $distdir = posix2w32path(get_minmerge_configval("DISTDIR"));
 my @distdirs;
 $distdirs[0] = $distdir;
-$distdirs[1] = get_minmerge_configval("DISTDIR2");
-$distdirs[2] = get_minmerge_configval("DISTDIR3");
-$distdirs[3] = get_minmerge_configval("DISTDIR4");
-$distdirs[4] = get_minmerge_configval("DISTDIR5");
-$distdirs[5] = get_minmerge_configval("DISTDIR6");
-$distdirs[6] = get_minmerge_configval("DISTDIR7");
-$distdirs[7] = get_minmerge_configval("DISTDIR8");
-$distdirs[8] = get_minmerge_configval("DISTDIR9");
-$distdir = posix2w32path($distdir);
+$distdirs[1] = posix2w32path(get_minmerge_configval("DISTDIR2"));
+$distdirs[2] = posix2w32path(get_minmerge_configval("DISTDIR3"));
+$distdirs[3] = posix2w32path(get_minmerge_configval("DISTDIR4"));
+$distdirs[4] = posix2w32path(get_minmerge_configval("DISTDIR5"));
+$distdirs[5] = posix2w32path(get_minmerge_configval("DISTDIR6"));
+$distdirs[6] = posix2w32path(get_minmerge_configval("DISTDIR7"));
+$distdirs[7] = posix2w32path(get_minmerge_configval("DISTDIR8"));
+$distdirs[8] = posix2w32path(get_minmerge_configval("DISTDIR9"));
 my @source_mirrors;
 {
 	my $str = get_minmerge_configval("SOURCE_MIRRORS");
@@ -533,8 +532,9 @@ if ($cmds{qmerge})
 		print "Can't write contents of package!\n";
 		exit 1;
 	}
-	print "Merge package to system...\n";
-	merge_package($prefix, $prefix_w32, $instdir, \@dirlist);
+	print " * Merge package to system...\n";
+	$ret = merge_package($prefix, $prefix_w32, $instdir, \@dirlist);
+	die "merge failed!\n" if !$ret;
 	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
 	if ($ixbuild)
 	{
@@ -550,43 +550,28 @@ if ($cmds{qmerge})
 if ($cmds{postinst})
 {
 	$ret = script_and_run_command($xbuild, 'postinst', undef);
-	if ($ret != 0)
-	{
-		print "Postinst failed!\n";
-		exit 1;
-	}
+	die "Postinst failed!\n" if $ret != 0;
 }
 if ($cmds{prerm})
 {
 	$ret = script_and_run_command($xbuild, 'prerm', undef);
-	if ($ret != 0)
-	{
-		print "Prerm failed!\n";
-		exit 1;
-	}
+	die "Prerm failed!\n" if $ret != 0;
 }
 if ($cmds{unmerge})
 {
 	# rewrite in perl (here)
 	$ret = script_and_run_command($xbuild, 'unmerge', undef);
+	die "Unmerge failed!\n" if $ret != 0;
 }
 if ($cmds{postrm})
 {
 	$ret = script_and_run_command($xbuild, 'postrm', undef);
-	if ($ret != 0)
-	{
-		print "Postrm failed!\n";
-		exit 1;
-	}
+	die "Postrm failed!\n" if $ret != 0;
 }
 if ($cmds{clean})
 {
 	$ret = script_and_run_command($xbuild, 'clean', undef);
-	if ($ret != 0)
-	{
-		print "Cleanup failed!\n";
-		exit 1;
-	}
+	die "Cleanup failed!\n" if $ret != 0;
 }
 
 
@@ -1138,7 +1123,7 @@ sub file_md5hash($)
 
 sub make_pkg_contents($$$)
 {
-	print "Make package contents... ";
+	print " * Make package contents... ";
 	my ($fname, $instdir, $ref_dirlist) = @_;
 	my ($file, $ifile);
 	my $mtime;
