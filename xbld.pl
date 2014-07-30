@@ -13,11 +13,16 @@ use File::Basename qw/basename/;
 use IPC::Open3;
 use Time::Local;
 use Cwd;
+use POSIX;
 
 sub script_and_run_command($$$);
 sub inject_part($$);
 sub src_uri_list2hash(@);
 sub fetch_file($$;$);
+sub dir_list($$);
+sub touch_to_filelist(@);
+sub strip_binary_list(@);
+sub strip_binary($$);
 
 if (scalar(@ARGV) < 2)
 {
@@ -143,6 +148,7 @@ my $ret;
 
 my $workdir;
 my $workdir_temp;
+my $instdir;
 my %src_uri_hash;
 my @A;
 
@@ -227,8 +233,10 @@ foreach (@commands)
 
 %xbuild_info = pkgdb::xbuild_info($xbuild);
 
+# xbuild's variables
 $workdir = "$tmpdir/$xbuild_info{pn}-build";
 $workdir_temp = "$workdir/temp";
+$instdir = "$workdir/image";
 
 # SRC_URI & A
 {
@@ -327,34 +335,97 @@ if ($cmds{fetch})
 if ($cmds{setup})
 {
 	$ret = script_and_run_command($xbuild, 'setup', undef);
+	if ($ret != 0)
+	{
+		print "Setup failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{unpack})
 {
 	$ret = script_and_run_command($xbuild, 'clean', undef);
+	if ($ret != 0)
+	{
+		print "Cleanup failed!\n";
+		exit 1;
+	}
 	$ret = script_and_run_command($xbuild, 'unpack', undef);
+	if ($ret != 0)
+	{
+		print "Unpack failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{prepare})
 {
 	$ret = script_and_run_command($xbuild, 'prepare', 1);
+	if ($ret != 0)
+	{
+		print "Prepare failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{configure})
 {
 	$ret = script_and_run_command($xbuild, 'configure', 1);
+	if ($ret != 0)
+	{
+		print "Configure failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{compile})
 {
 	$ret = script_and_run_command($xbuild, 'compile', 1);
+	if ($ret != 0)
+	{
+		print "Compile failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{test})
 {
 	$ret = script_and_run_command($xbuild, 'test', 1);
+	if ($ret != 0)
+	{
+		print "Test failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{install})
 {
 	$ret = script_and_run_command($xbuild, 'install', 1);
+	if ($ret != 0)
+	{
+		print "Install failed!\n";
+		exit 1;
+	}
+	# create list of installed dirs & files.
+	my @dirlist = dir_list($instdir, '/');
+	# write thislist to file
+	my $fh;
+	if (open($fh, "> $workdir_temp/contents"))
+	{
+		foreach (@dirlist)
+		{
+			print $fh "$_\n";
+		}
+		close($fh);
+	}
+	else
+	{
+		print "Can't write contents of package!\n";
+		exit 1;
+	}
+	# update modtime of each files to current time
+	# later in make_content function this time saved in content list.
+	# And in make_package function files saved also with this time.
+	# This is needed to correctly update package (see merge.pl).
+	touch_to_filelist($instdir, @dirlist);
 	if (!$restrict{strip})
 	{
-		# add: strip executables
+		print "Strip executables and libraries:\n";
+		strip_binary_list($instdir, @dirlist);
 	}
 }
 if ($cmds{package})
@@ -364,6 +435,11 @@ if ($cmds{package})
 if ($cmds{preinst})
 {
 	$ret = script_and_run_command($xbuild, 'preinst', 1);
+	if ($ret != 0)
+	{
+		print "Preinst failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{qmerge})
 {
@@ -373,10 +449,20 @@ if ($cmds{qmerge})
 if ($cmds{postinst})
 {
 	$ret = script_and_run_command($xbuild, 'postinst', undef);
+	if ($ret != 0)
+	{
+		print "Postinst failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{prerm})
 {
 	$ret = script_and_run_command($xbuild, 'prerm', undef);
+	if ($ret != 0)
+	{
+		print "Prerm failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{unmerge})
 {
@@ -386,10 +472,20 @@ if ($cmds{unmerge})
 if ($cmds{postrm})
 {
 	$ret = script_and_run_command($xbuild, 'postrm', undef);
+	if ($ret != 0)
+	{
+		print "Postrm failed!\n";
+		exit 1;
+	}
 }
 if ($cmds{clean})
 {
 	$ret = script_and_run_command($xbuild, 'clean', undef);
+	if ($ret != 0)
+	{
+		print "Cleanup failed!\n";
+		exit 1;
+	}
 }
 
 
@@ -707,4 +803,112 @@ sub fetch_file($$;$)
 		}
 	}
 	return $ret == 0;
+}
+
+# read directory and return list with its contents
+sub dir_list($$)
+{
+	my ($dir, $prefix) = @_;
+	my $dh;
+	my @res_list;
+	my $entry;
+	my $f_entry;
+	my @_st;
+	if (opendir($dh, $dir))
+	{
+		while ($entry = readdir($dh))
+		{
+			next if ($entry eq '..' || $entry eq '.');
+			$f_entry = $dir . '/' . $entry;
+			push(@res_list, $prefix . $entry);
+			@_st = stat($f_entry);
+			if (S_ISDIR($_st[2]))
+			{
+				push(@res_list, dir_list($f_entry, $prefix . $entry . '/'));
+			}
+		}
+		@res_list = sort(@res_list);
+		closedir($dh);
+	}
+	return @res_list;
+}
+
+# touch to all files in list
+# first argument - directory prefix
+sub touch_to_filelist(@)
+{
+	my ($prefix, @dirlist) = @_;
+	my $fname;
+	foreach (@dirlist)
+	{
+		next if !$_;
+		$fname = $prefix . '/' . $_;
+		utime(undef, undef, $fname);
+	}
+}
+
+# strip binary files
+# first argument - directory prefix
+sub strip_binary_list(@)
+{
+	my ($prefix, @dirlist) = @_;
+	my $fname;
+	my $bname;
+	my @_st;
+	foreach (@dirlist)
+	{
+		next if !$_;
+		$fname = $prefix . '/' . $_;
+		@_st = stat($fname);
+		if (@_st)
+		{
+			if (S_ISREG($_st[2]))
+			{
+				$bname = File::Basename::basename($_);
+				if ($bname =~ m/^.*\.exe$|^.*\.dll$/ && !($bname =~ m/^.*\dd\.dll$/))
+				{
+					if (strip_binary($fname, 'r'))
+					{
+						print "\t.$_\n";
+					}
+					else
+					{
+						print "strip failed at $_!\n";
+						last;
+					}
+				}
+				elsif ($bname =~ m/^.*\.a$|^.*\.o$/ && !($bname =~ m/^lib.*dll\.a/) && !($bname =~ m/^lib.*\dd\.a/))
+				{
+					if (strip_binary($fname, 'l'))
+					{
+						print "\t.$_\n";
+					}
+					else
+					{
+						print "strip failed at $_!\n";
+						last;
+					}
+				}
+			}
+		}
+	}
+}
+
+sub strip_binary($$)
+{
+	my ($fname, $type) = @_;
+	my $arg;
+	if ($type =~ m/r|runtime/)
+	{
+		$arg = "--strip-unneeded";
+	}
+	elsif ($type =~ m/l|library|o|object/)
+	{
+		$arg = "--strip-debug"
+	}
+	else
+	{
+		$arg = "";
+	}
+	return system("strip $arg $fname") == 0;
 }

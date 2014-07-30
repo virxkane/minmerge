@@ -9,6 +9,11 @@
 # following variables must be declared in xbuild file
 #  SRC_URI
 
+# In xbld.pl writen following variables:
+# CATEGORY
+# PN, PV, PR, PVR, PF, P, A
+# SOURCES_DIR, CMAKE_SOURCES_DIR
+
 export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
 
 export CHOST
@@ -22,12 +27,10 @@ INSTDIR="${WORKDIR}/image"
 PKGDBBASE="${PREFIX}/var/db/pkg"
 PKGDBDIR="${PKGDBBASE}/${CATEGORY}/${PF}"
 PKGCONT="${PKGDBDIR}/CONTENTS"
-TMPCONT="${WORKDIR_TEMP}/tmpcont"
+TMPCONT="${WORKDIR_TEMP}/contents"
 PKG="${PKGDIR}/${PF}.bin.tar.xz"
 DISTDIRS="${DISTDIR} ${DISTDIR2} ${DISTDIR3} ${DISTDIR4} ${DISTDIR5}
 			${DISTDIR6} ${DISTDIR7} ${DISTDIR8} ${DISTDIR9}"
-
-# ${A} writen in xbld.pl
 
 w32path_posix()
 {
@@ -453,31 +456,4 @@ merge()
 	einfo "Merge package to system..."
 	perl ${XMERGE_PATH}/lib/merge.pl "${INSTDIR}" "${TMPCONT}"
 	return $?
-}
-
-#  OBSOLETE: for removal!!!
-# find installed packages with this name
-# arguments:
-# 1) package name like ${CATEGORY}/${PN} or just ${PN}
-find_installed_pkg()
-{
-	local pn=$1
-
-	local cat_name=`echo "${pn}" | sed -e "s/^\(.*\)\/.*$/\1/"`
-	if [ "${cat_name}" != "${pn}" ]
-	then
-		pn=`echo ${pn} | sed -e "s/^.*\/\(.*\)$/\1/"`
-	else
-		cat_name=""
-	fi
-
-	local list=
-	if [ "x${cat_name}" != "x" ]
-	then
-		list=`ls ${PKGDBBASE}/${cat_name} | grep ${pn}'-[0-9].*'`
-	else
-		list=`ls ${PKGDBBASE}/*/ | grep ${pn}'-[0-9].*'`
-	fi
-	# to-do: extract version part from name and check data, for example, slot
-	echo $list
 }
