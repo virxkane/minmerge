@@ -10,19 +10,25 @@ use warnings;
 
 use File::Temp qw/tempfile/;
 use File::Basename qw/basename/;
+use File::Copy;
+use File::Path;
 use IPC::Open3;
 use Time::Local;
 use Cwd;
 use POSIX;
+use Digest::MD5;
 
 sub script_and_run_command($$$);
 sub inject_part($$);
 sub src_uri_list2hash(@);
 sub fetch_file($$;$);
 sub dir_list($$);
-sub touch_to_filelist(@);
-sub strip_binary_list(@);
+sub touch_to_filelist($$);
+sub strip_binary_list($$);
 sub strip_binary($$);
+sub merge_package($$$$);
+sub file_md5hash($);
+sub make_pkg_contents($$$);
 
 if (scalar(@ARGV) < 2)
 {
@@ -100,6 +106,10 @@ xbuild::set_minmerge($MINMERGE_PATH);
 
 # minmerge config vars:
 my $prefix = get_minmerge_configval("PREFIX");
+if (length($prefix) > 1 && substr($prefix, length($prefix) - 1, 1) eq '/')
+{
+	$prefix = substr($prefix, 0, length($prefix) - 1);
+}
 my $prefix_w32 = posix2w32path($prefix);
 my $pkgdbbase = $prefix_w32 . "/var/db/pkg";
 #my $portdir = get_minmerge_configval("PORTDIR");
@@ -324,91 +334,197 @@ if ($cmds{fetch})
 		if (!$ret)
 		{
 			$ret = fetch_file($distdir, $uri, $file);
-			if (!$ret)
-			{
-				print "Fetch $file failed!\n";
-				exit 1;
-			}
+			die "Fetch $file failed!\n" if !$ret;
 		}
 	}
 }
 if ($cmds{setup})
 {
 	$ret = script_and_run_command($xbuild, 'setup', undef);
-	if ($ret != 0)
-	{
-		print "Setup failed!\n";
-		exit 1;
-	}
+	die "Setup failed!\n" if $ret != 0;
 }
 if ($cmds{unpack})
 {
-	$ret = script_and_run_command($xbuild, 'clean', undef);
-	if ($ret != 0)
+	my $label = "$workdir/.unpacked";
+	if (! -e $label)
 	{
-		print "Cleanup failed!\n";
-		exit 1;
+		$ret = script_and_run_command($xbuild, 'clean', undef);
+		die "Cleanup failed!\n" if $ret != 0;
+		$ret = script_and_run_command($xbuild, 'unpack', undef);
+		die "Unpack failed!\n" if $ret != 0;
+		my $fh;
+		close $fh if open($fh, "> $label");
 	}
-	$ret = script_and_run_command($xbuild, 'unpack', undef);
-	if ($ret != 0)
+	else
 	{
-		print "Unpack failed!\n";
-		exit 1;
+		print("Package already unpacked, to force this operation\n");
+		print("delete file $label\n");
 	}
 }
 if ($cmds{prepare})
 {
-	$ret = script_and_run_command($xbuild, 'prepare', 1);
-	if ($ret != 0)
+	my $label0 = "$workdir/.unpacked";
+	my $label = "$workdir/.prepared";
+	if (! -e $label0)
 	{
-		print "Prepare failed!\n";
-		exit 1;
+		die "Package not unpacked yet!\n";
+	}
+	if (! -e $label)
+	{
+		$ret = script_and_run_command($xbuild, 'prepare', 1);
+		die "Prepare failed!\n" if $ret != 0;
+		my $fh;
+		close $fh if open($fh, "> $label");
+	}
+	else
+	{
+		print("Package already prepared, to force this operation\n");
+		print("delete file $label\n");
 	}
 }
 if ($cmds{configure})
 {
-	$ret = script_and_run_command($xbuild, 'configure', 1);
-	if ($ret != 0)
+	my $label0 = "$workdir/.prepared";
+	my $label = "$workdir/.configured";
+	if (! -e $label0)
 	{
-		print "Configure failed!\n";
-		exit 1;
+		die "Package not prepared yet!\n";
+	}
+	if (! -e $label)
+	{
+		$ret = script_and_run_command($xbuild, 'configure', 1);
+		die "configure failed!\n" if $ret != 0;
+		my $fh;
+		close $fh if open($fh, "> $label");
+	}
+	else
+	{
+		print("Package already configured, to force this operation\n");
+		print("delete file $label\n");
 	}
 }
 if ($cmds{compile})
 {
-	$ret = script_and_run_command($xbuild, 'compile', 1);
-	if ($ret != 0)
+	my $label0 = "$workdir/.configured";
+	my $label = "$workdir/.compiled";
+	if (! -e $label0)
 	{
-		print "Compile failed!\n";
-		exit 1;
+		die "Package not configured yet!\n";
+	}
+	if (! -e $label)
+	{
+		$ret = script_and_run_command($xbuild, 'compile', 1);
+		die "compile failed!\n" if $ret != 0;
+		my $fh;
+		close $fh if open($fh, "> $label");
+	}
+	else
+	{
+		print("Package already compiled, to force this operation\n");
+		print("delete file $label\n");
 	}
 }
 if ($cmds{test})
 {
-	$ret = script_and_run_command($xbuild, 'test', 1);
-	if ($ret != 0)
+	my $label0 = "$workdir/.compiled";
+	my $label = "$workdir/.tested";
+	if (! -e $label0)
 	{
-		print "Test failed!\n";
-		exit 1;
+		die "Package not compiled yet!\n";
+	}
+	if (! -e $label)
+	{
+		$ret = script_and_run_command($xbuild, 'test', 1);
+		die "test failed!\n" if $ret != 0;
+		my $fh;
+		close $fh if open($fh, "> $label");
+	}
+	else
+	{
+		print("Package already tested, to force this operation\n");
+		print("delete file $label\n");
 	}
 }
 if ($cmds{install})
 {
-	$ret = script_and_run_command($xbuild, 'install', 1);
-	if ($ret != 0)
+	my $label0 = "$workdir/.compiled";
+	my $label = "$workdir/.installed";
+	if (! -e $label0)
 	{
-		print "Install failed!\n";
-		exit 1;
+		die "Package not compiled yet!\n";
 	}
-	# create list of installed dirs & files.
-	my @dirlist = dir_list($instdir, '/');
-	# write thislist to file
-	my $fh;
-	if (open($fh, "> $workdir_temp/contents"))
+	if (! -e $label)
 	{
-		foreach (@dirlist)
+		if (! -d $instdir)
 		{
-			print $fh "$_\n";
+			mkdir($instdir, 0755) || die "Can't create $instdir!\n";
+		}
+		$ret = script_and_run_command($xbuild, 'install', 1);
+		die "Install failed!\n" if $ret != 0;
+		# create list of installed dirs & files.
+		my @dirlist = dir_list($instdir, '');
+		# write thislist to file
+		my $fh;
+		if (open($fh, "> $workdir_temp/contents"))
+		{
+			foreach (@dirlist)
+			{
+				print $fh "$_\n";
+			}
+			close($fh);
+		}
+		else
+		{
+			die "Can't write contents of package!\n";
+		}
+		# update modtime of each files to current time
+		# later in make_content function this time saved in content list.
+		# And in make_package function files saved also with this time.
+		# This is needed to correctly update package (see merge.pl).
+		touch_to_filelist($instdir, \@dirlist);
+		if (!$restrict{strip})
+		{
+			print "Strip executables and libraries:\n";
+			strip_binary_list($instdir, \@dirlist);
+		}
+		close $fh if open($fh, "> $label");
+	}
+	else
+	{
+		print("Package already installed, to force this operation\n");
+		print("delete file $label\n");
+	}
+}
+if ($cmds{package})
+{
+	my $label0 = "$workdir/.installed";
+	if (! -e $label0)
+	{
+		die "Package not installed yet!\n";
+	}
+	$ret = script_and_run_command($xbuild, 'package', 1);
+	die "package failed!\n" if $ret != 0;
+}
+if ($cmds{preinst})
+{
+	$ret = script_and_run_command($xbuild, 'preinst', 1);
+	die "preinst failed!\n" if $ret != 0;
+}
+if ($cmds{qmerge})
+{
+	my $label0 = "$workdir/.installed";
+	if (! -e $label0)
+	{
+		die "Package not installed yet!\n";
+	}
+	my @dirlist;
+	my $fh;
+	if (open($fh, "< $workdir_temp/contents"))
+	{
+		while (<$fh>)
+		{
+			chomp;
+			push(@dirlist, $_);
 		}
 		close($fh);
 	}
@@ -417,34 +533,18 @@ if ($cmds{install})
 		print "Can't write contents of package!\n";
 		exit 1;
 	}
-	# update modtime of each files to current time
-	# later in make_content function this time saved in content list.
-	# And in make_package function files saved also with this time.
-	# This is needed to correctly update package (see merge.pl).
-	touch_to_filelist($instdir, @dirlist);
-	if (!$restrict{strip})
+	merge_package($prefix, $prefix_w32, $instdir, \@dirlist);
+	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
+	if ($ixbuild)
 	{
-		print "Strip executables and libraries:\n";
-		strip_binary_list($instdir, @dirlist);
+		# TODO: unmerge previously installed version.
+		#my $ixbuild_info = xbuild_info($ixbuild);
 	}
-}
-if ($cmds{package})
-{
-	$ret = script_and_run_command($xbuild, 'package', 1);
-}
-if ($cmds{preinst})
-{
-	$ret = script_and_run_command($xbuild, 'preinst', 1);
-	if ($ret != 0)
-	{
-		print "Preinst failed!\n";
-		exit 1;
-	}
-}
-if ($cmds{qmerge})
-{
-	# rewrite in perl (here)
-	$ret = script_and_run_command($xbuild, 'qmerge', 1);
+	File::Path::mkpath($pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}");
+	my $cp_xbuild = $pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}/" . File::Basename::basename($xbuild);
+	File::Copy::copy($xbuild, $cp_xbuild);
+	# TODO: copy other information to metadata dir about compilation...
+	make_pkg_contents($pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}/CONTENTS", $instdir, \@dirlist);
 }
 if ($cmds{postinst})
 {
@@ -835,11 +935,11 @@ sub dir_list($$)
 
 # touch to all files in list
 # first argument - directory prefix
-sub touch_to_filelist(@)
+sub touch_to_filelist($$)
 {
-	my ($prefix, @dirlist) = @_;
+	my ($prefix, $ref_dirlist) = @_;
 	my $fname;
-	foreach (@dirlist)
+	foreach (@$ref_dirlist)
 	{
 		next if !$_;
 		$fname = $prefix . '/' . $_;
@@ -849,13 +949,13 @@ sub touch_to_filelist(@)
 
 # strip binary files
 # first argument - directory prefix
-sub strip_binary_list(@)
+sub strip_binary_list($$)
 {
-	my ($prefix, @dirlist) = @_;
+	my ($prefix, $ref_dirlist) = @_;
 	my $fname;
 	my $bname;
 	my @_st;
-	foreach (@dirlist)
+	foreach (@$ref_dirlist)
 	{
 		next if !$_;
 		$fname = $prefix . '/' . $_;
@@ -869,7 +969,7 @@ sub strip_binary_list(@)
 				{
 					if (strip_binary($fname, 'r'))
 					{
-						print "\t.$_\n";
+						print "\t$_\n";
 					}
 					else
 					{
@@ -881,7 +981,7 @@ sub strip_binary_list(@)
 				{
 					if (strip_binary($fname, 'l'))
 					{
-						print "\t.$_\n";
+						print "\t$_\n";
 					}
 					else
 					{
@@ -911,4 +1011,152 @@ sub strip_binary($$)
 		$arg = "";
 	}
 	return system("strip $arg $fname") == 0;
+}
+
+# arguments:
+# 0: prefix - where package will be installed (msys path).
+# 1: prefix_w32 - where package will be installed (win32 path).
+# 2: instdir - where placed package files.
+# 3: ref to list of package files.
+sub merge_package($$$$)
+{
+	my ($prefix, $prefix_w32, $instdir, $reflist) = @_;
+	my @list = @$reflist;
+
+	my $prefix_len = length($prefix);
+	my $tmp;
+	my $fname;
+	my $targ_fname;
+	my $ret;
+	my $opstatus;
+	my $fileflag = "";
+	my @_st;
+	
+	foreach $line (@list)
+	{
+		$line = '/' . $line; # if substr($line, 0, 1) ne '/';
+		$tmp = substr($line, 0, $prefix_len);
+		if ($tmp ne $prefix)
+		{
+			print "Found invalid prefix in installed tree: $tmp\n";
+			return 0;
+		}
+		next if $line eq $prefix;
+		$fname = $instdir . $line;
+		$line = substr($line, $prefix_len);
+		next if length($line) == 0;
+		if (substr($line, 0, 1) ne '/')
+		{
+			print "Found invalid prefix in installed tree!\n";
+			return 0;
+		}
+		$targ_fname = $prefix_w32 . $line;
+
+		#print "$fname\n";
+		#print "$targ_fname\n";
+
+		$ret = 1;
+		if (-d $fname)
+		{
+			# create dir in live filesystem
+			if (-f $targ_fname)
+			{
+				print("Found file $targ_fname but must be directory!\n");
+				$ret = 0;
+			}
+			else
+			{
+				if (-d $targ_fname)
+				{
+					$ret = 1;
+					$opstatus = "---";
+				}
+				else
+				{
+					$ret = mkdir($targ_fname);
+					$opstatus = ">>>" if $ret == 1;
+				}
+			}
+			if ($ret == 1)
+			{
+				printf "%s %-7s dir %s\n", $opstatus, $fileflag, $targ_fname;
+			}
+			else
+			{
+				printf "!!! failed  dir %s\n", $fname;
+			}
+		}
+		elsif(-f $fname)
+		{
+			# copy file to live filesystem
+			# TODO: check if file already exists
+			@_st = stat($fname);
+			if (-d $targ_fname)
+			{
+				print("Found directory $targ_fname but we want copy to file with this name!\n");
+				$ret = 0;
+			}
+			else
+			{
+				$ret = File::Copy::copy($fname, $targ_fname);
+				if ($ret == 1)
+				{
+					utime($_st[8], $_st[9], $targ_fname);
+				}
+			}
+			if ($ret == 1)
+			{
+				printf ">>> %-7s fil %s\n", $fileflag, $targ_fname;
+			}
+			else
+			{
+				printf "!!! failed  fil %s\n", $targ_fname;
+			}
+		}
+		if ($ret == 0)
+		{
+			last
+		}
+	}
+	return $ret;
+}
+
+sub file_md5hash($)
+{
+	my $fname = $_[0];
+	local *FILE;
+	if (!open(FILE, "< $fname"))
+	{
+		return "";
+	}
+	binmode(FILE);
+	my $res = Digest::MD5->new->addfile(*FILE)->hexdigest;
+	close(FILE);
+	return $res;
+}
+
+sub make_pkg_contents($$$)
+{
+	print "Make package contents... ";
+	my ($fname, $instdir, $ref_dirlist) = @_;
+	my ($file, $ifile);
+	my $mtime;
+	my $fh;
+	open($fh, "> $fname") || die "Can't create file $fname\n";
+	foreach (@$ref_dirlist)
+	{
+		$file = '/' . $_;
+		$ifile = $instdir . $file;
+		if (-d $ifile)
+		{
+			printf $fh "dir\t%s\n", $file;
+		}
+		else
+		{
+			(undef,undef,undef,undef,undef,undef,undef,undef,undef,$mtime,undef,undef,undef) = stat($ifile);
+			printf $fh "fil\t%s\t%s\t%d\n", $file, file_md5hash($ifile), $mtime;
+		}
+	}
+	close($fh);
+	print "OK\n";
 }

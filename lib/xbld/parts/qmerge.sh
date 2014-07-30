@@ -1,7 +1,3 @@
-if [ ! -f "${WORKDIR}/.installed" ]
-then
-	die "package not installed yet!"
-fi
 merge || die "merge failed!"
 # then remove early installed version of this package if exists
 # excluding modified (i.e. new) files.
