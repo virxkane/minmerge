@@ -533,6 +533,7 @@ if ($cmds{qmerge})
 		print "Can't write contents of package!\n";
 		exit 1;
 	}
+	print "Merge package to system...\n";
 	merge_package($prefix, $prefix_w32, $instdir, \@dirlist);
 	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
 	if ($ixbuild)
