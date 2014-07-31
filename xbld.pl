@@ -16,7 +16,6 @@ use IPC::Open3;
 use Time::Local;
 use Cwd;
 use POSIX;
-use Digest::MD5;
 
 sub script_and_run_command($$$);
 sub inject_part($$);
@@ -26,9 +25,6 @@ sub dir_list($$);
 sub touch_to_filelist($$);
 sub strip_binary_list($$);
 sub strip_binary($$);
-sub merge_package($$$$);
-sub file_md5hash($);
-sub make_pkg_contents($$$);
 
 if (scalar(@ARGV) < 2)
 {
@@ -158,6 +154,7 @@ my $ret;
 my $workdir;
 my $workdir_temp;
 my $instdir;
+my $pkgdbdir;
 my %src_uri_hash;
 my @A;
 
@@ -246,6 +243,7 @@ foreach (@commands)
 $workdir = "$tmpdir/$xbuild_info{pn}-build";
 $workdir_temp = "$workdir/temp";
 $instdir = "$workdir/image";
+$pkgdbdir = "$pkgdbbase/$xbuild_info{cat}/$xbuild_info{pf}";
 
 # SRC_URI & A
 {
@@ -538,14 +536,15 @@ if ($cmds{qmerge})
 	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
 	if ($ixbuild)
 	{
-		# TODO: unmerge previously installed version.
-		#my $ixbuild_info = xbuild_info($ixbuild);
+		my $info = xbuild_info($ixbuild);
+		print " * Safely unmerging already-installed instance of $info{cat}/$info{pf}...\n";
+		$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir, $ixbuild);
+		die "Unmerge $info{cat}/$info{pf} failed!" if !$ret;
 	}
-	File::Path::mkpath($pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}");
-	my $cp_xbuild = $pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}/" . File::Basename::basename($xbuild);
-	File::Copy::copy($xbuild, $cp_xbuild);
-	# TODO: copy other information to metadata dir about compilation...
-	make_pkg_contents($pkgdbbase . "/$xbuild_info{cat}/$xbuild_info{pf}/CONTENTS", $instdir, \@dirlist);
+	File::Path::mkpath($pkgdbdir);
+	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
+	# TODO: copy other information to metadata dir ($pkgdbdir) about compilation process...
+	make_pkg_contents($pkgdbdir . "/CONTENTS", $instdir, \@dirlist);
 }
 if ($cmds{postinst})
 {
@@ -559,9 +558,9 @@ if ($cmds{prerm})
 }
 if ($cmds{unmerge})
 {
-	# rewrite in perl (here)
-	$ret = script_and_run_command($xbuild, 'unmerge', undef);
-	die "Unmerge failed!\n" if $ret != 0;
+	print " * Unmerging package $info{cat}/$info{pf}...\n";
+	$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir, $xbuild);
+	die "Unmerge $xbuild_info{cat}/$xbuild_info{pf} failed!" if !$ret;	
 }
 if ($cmds{postrm})
 {
@@ -999,150 +998,3 @@ sub strip_binary($$)
 	return system("strip $arg $fname") == 0;
 }
 
-# arguments:
-# 0: prefix - where package will be installed (msys path).
-# 1: prefix_w32 - where package will be installed (win32 path).
-# 2: instdir - where placed package files.
-# 3: ref to list of package files.
-sub merge_package($$$$)
-{
-	my ($prefix, $prefix_w32, $instdir, $reflist) = @_;
-	my @list = @$reflist;
-
-	my $prefix_len = length($prefix);
-	my $tmp;
-	my $fname;
-	my $targ_fname;
-	my $ret;
-	my $opstatus;
-	my $fileflag = "";
-	my @_st;
-	
-	foreach $line (@list)
-	{
-		$line = '/' . $line; # if substr($line, 0, 1) ne '/';
-		$tmp = substr($line, 0, $prefix_len);
-		if ($tmp ne $prefix)
-		{
-			print "Found invalid prefix in installed tree: $tmp\n";
-			return 0;
-		}
-		next if $line eq $prefix;
-		$fname = $instdir . $line;
-		$line = substr($line, $prefix_len);
-		next if length($line) == 0;
-		if (substr($line, 0, 1) ne '/')
-		{
-			print "Found invalid prefix in installed tree!\n";
-			return 0;
-		}
-		$targ_fname = $prefix_w32 . $line;
-
-		#print "$fname\n";
-		#print "$targ_fname\n";
-
-		$ret = 1;
-		if (-d $fname)
-		{
-			# create dir in live filesystem
-			if (-f $targ_fname)
-			{
-				print("Found file $targ_fname but must be directory!\n");
-				$ret = 0;
-			}
-			else
-			{
-				if (-d $targ_fname)
-				{
-					$ret = 1;
-					$opstatus = "---";
-				}
-				else
-				{
-					$ret = mkdir($targ_fname);
-					$opstatus = ">>>" if $ret == 1;
-				}
-			}
-			if ($ret == 1)
-			{
-				printf "%s %-7s dir %s\n", $opstatus, $fileflag, $targ_fname;
-			}
-			else
-			{
-				printf "!!! failed  dir %s\n", $fname;
-			}
-		}
-		elsif(-f $fname)
-		{
-			# copy file to live filesystem
-			# TODO: check if file already exists
-			@_st = stat($fname);
-			if (-d $targ_fname)
-			{
-				print("Found directory $targ_fname but we want copy to file with this name!\n");
-				$ret = 0;
-			}
-			else
-			{
-				$ret = File::Copy::copy($fname, $targ_fname);
-				if ($ret == 1)
-				{
-					utime($_st[8], $_st[9], $targ_fname);
-				}
-			}
-			if ($ret == 1)
-			{
-				printf ">>> %-7s fil %s\n", $fileflag, $targ_fname;
-			}
-			else
-			{
-				printf "!!! failed  fil %s\n", $targ_fname;
-			}
-		}
-		if ($ret == 0)
-		{
-			last
-		}
-	}
-	return $ret;
-}
-
-sub file_md5hash($)
-{
-	my $fname = $_[0];
-	local *FILE;
-	if (!open(FILE, "< $fname"))
-	{
-		return "";
-	}
-	binmode(FILE);
-	my $res = Digest::MD5->new->addfile(*FILE)->hexdigest;
-	close(FILE);
-	return $res;
-}
-
-sub make_pkg_contents($$$)
-{
-	print " * Make package contents... ";
-	my ($fname, $instdir, $ref_dirlist) = @_;
-	my ($file, $ifile);
-	my $mtime;
-	my $fh;
-	open($fh, "> $fname") || die "Can't create file $fname\n";
-	foreach (@$ref_dirlist)
-	{
-		$file = '/' . $_;
-		$ifile = $instdir . $file;
-		if (-d $ifile)
-		{
-			printf $fh "dir\t%s\n", $file;
-		}
-		else
-		{
-			(undef,undef,undef,undef,undef,undef,undef,undef,undef,$mtime,undef,undef,undef) = stat($ifile);
-			printf $fh "fil\t%s\t%s\t%d\n", $file, file_md5hash($ifile), $mtime;
-		}
-	}
-	close($fh);
-	print "OK\n";
-}

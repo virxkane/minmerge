@@ -36,11 +36,13 @@ use 5.006;
 use strict;
 
 use File::Temp qw/tempfile/;
+use Digest::MD5;
+use File::Copy;
 
 require Exporter;
 
 our @ISA = qw(Exporter);
-our @EXPORT = qw(set_minmerge get_minmerge_configval get_xbuild_vars get_depends get_rdepends get_full_xbuild_var);
+our @EXPORT = qw(set_minmerge get_minmerge_configval get_xbuild_vars get_depends get_rdepends get_full_xbuild_var merge_package make_pkg_contents unmerge_package);
 
 my $_minmerge_path;
 
@@ -207,6 +209,183 @@ sub get_depends($)
 sub get_rdepends($)
 {
 	return get_xbuild_vars($_[0], 'RDEPEND');
+}
+
+=item C<merge_package>
+X<merge_package> 
+
+Merge package to system.
+arguments:
+0: prefix - where package will be installed (msys path).
+1: prefix_w32 - where package will be installed (win32 path).
+2: instdir - where placed package files.
+3: ref to list of package files.
+
+=cut
+
+sub merge_package($$$$)
+{
+	my ($prefix, $prefix_w32, $instdir, $reflist) = @_;
+	my @list = @$reflist;
+
+	my $prefix_len = length($prefix);
+	my $line;
+	my $tmp;
+	my $fname;
+	my $targ_fname;
+	my $res;
+	my $opstatus;
+	my $fileflag = "";
+	my @_st;
+	
+	foreach $line (@list)
+	{
+		$line = '/' . $line; # if substr($line, 0, 1) ne '/';
+		$tmp = substr($line, 0, $prefix_len);
+		if ($tmp ne $prefix)
+		{
+			print "Found invalid prefix in installed tree: $tmp\n";
+			return 0;
+		}
+		next if $line eq $prefix;
+		$fname = $instdir . $line;
+		$line = substr($line, $prefix_len);
+		next if length($line) == 0;
+		if (substr($line, 0, 1) ne '/')
+		{
+			print "Found invalid prefix in installed tree!\n";
+			return 0;
+		}
+		$targ_fname = $prefix_w32 . $line;
+
+		#print "$fname\n";
+		#print "$targ_fname\n";
+
+		$res = 1;
+		if (-d $fname)
+		{
+			# create dir in live filesystem
+			if (-f $targ_fname)
+			{
+				print("Found file $targ_fname but must be directory!\n");
+				$res = 0;
+			}
+			else
+			{
+				if (-d $targ_fname)
+				{
+					$res = 1;
+					$opstatus = "---";
+				}
+				else
+				{
+					$res = mkdir($targ_fname);
+					$opstatus = ">>>" if $res == 1;
+				}
+			}
+			if ($res == 1)
+			{
+				printf "%s %-7s dir %s\n", $opstatus, $fileflag, $targ_fname;
+			}
+			else
+			{
+				printf "!!! failed  dir %s\n", $fname;
+			}
+		}
+		elsif(-f $fname)
+		{
+			# copy file to live filesystem
+			# TODO: check if file already exists
+			@_st = stat($fname);
+			if (-d $targ_fname)
+			{
+				print("Found directory $targ_fname but we want copy to file with this name!\n");
+				$res = 0;
+			}
+			else
+			{
+				$res = File::Copy::copy($fname, $targ_fname);
+				if ($res == 1)
+				{
+					utime($_st[8], $_st[9], $targ_fname);
+				}
+			}
+			if ($res == 1)
+			{
+				printf ">>> %-7s fil %s\n", $fileflag, $targ_fname;
+			}
+			else
+			{
+				printf "!!! failed  fil %s\n", $targ_fname;
+			}
+		}
+		if ($res == 0)
+		{
+			last
+		}
+	}
+	return $res;
+}
+
+sub file_md5hash($)
+{
+	my $fname = $_[0];
+	local *FILE;
+	if (!open(FILE, "< $fname"))
+	{
+		return "";
+	}
+	binmode(FILE);
+	my $res = Digest::MD5->new->addfile(*FILE)->hexdigest;
+	close(FILE);
+	return $res;
+}
+
+sub make_pkg_contents($$$)
+{
+	print " * Make package contents... ";
+	my ($fname, $instdir, $ref_dirlist) = @_;
+	my ($file, $ifile);
+	my $mtime;
+	my $fh;
+	open($fh, "> $fname") || die "Can't create file $fname\n";
+	foreach (@$ref_dirlist)
+	{
+		$file = '/' . $_;
+		$ifile = $instdir . $file;
+		if (-d $ifile)
+		{
+			printf $fh "dir\t%s\n", $file;
+		}
+		else
+		{
+			(undef,undef,undef,undef,undef,undef,undef,undef,undef,$mtime,undef,undef,undef) = stat($ifile);
+			printf $fh "fil\t%s\t%s\t%d\n", $file, file_md5hash($ifile), $mtime;
+		}
+	}
+	close($fh);
+	print "OK\n";
+}
+
+=item C<unmerge_package>
+X<unmerge_package> 
+
+Unmerge package - remove from system.
+arguments:
+0: prefix - where package will be installed (msys path).
+1: prefix_w32 - where package will be installed (win32 path).
+2: pkgdbdir - where saved information about this installed package.
+3: xbuild - path to installed copy of xbuild.
+4: force delete flag, if set to nonzero delete also modified files (optional).
+
+=cut
+
+sub unmerge_package($$$$;$)
+{
+	my ($prefix, $prefix_w32, $pkgdbdir, $xbuild, $force) = @_;
+	my $res = 0;
+	;
+	return $res;
 }
 
 1;

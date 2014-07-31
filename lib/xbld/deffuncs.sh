@@ -25,7 +25,7 @@ eend()
 
 eerror()
 {
-	echo "$1" | tee -a "${BUILDLOG}"
+	echo "$1"
 	exit 1
 }
 

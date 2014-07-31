@@ -580,11 +580,7 @@ sub calc_deps_private($$$$)
 		if ($right_atom eq '||')
 		{
 			$or_pos = $count - 1;
-			if ($or_pos == 0)
-			{
-				print "Invalid usage of operator '||'!\n";
-				exit 1;
-			}
+			die "Invalid usage of operator '||'!\n" if $or_pos == 0;
 			pop(@tmp_deps);
 		}
 		else
@@ -596,8 +592,7 @@ sub calc_deps_private($$$$)
 	}
 	if ($right_atom && $right_atom eq '||')
 	{
-		print "Invalid usage of operator '||'!\n";
-		exit 1;
+		die "Invalid usage of operator '||'!\n";
 	}
 	@dep_atoms = @tmp_deps;
 
@@ -607,29 +602,17 @@ sub calc_deps_private($$$$)
 		{
 			$dep_atom = substr($dep_atom, 1);
 			$dep_xbuild = find_installed_xbuild($dep_atom);
-			if ($dep_xbuild)
-			{
-				print "$xbuild: Found installed package that blocked me: $dep_atom\n";
-				exit 1;
-			}
+			die "$xbuild: Found installed package that blocked me: $dep_atom\n" if $dep_xbuild;
 			next;
 		}
 		if ($empty)
 		{
 			$dep_xbuild = find_xbuild($dep_atom);
-			if (!$dep_xbuild)
-			{
-				print "Package not found for this atom: $dep_atom\n";
-				exit 1;
-			}
+			die "Package not found for this atom: $dep_atom\n" if !$dep_xbuild;
 			# before we going into recursion check circular dependencies...
 			foreach (@_xbuilds_stack)
 			{
-				if ($dep_xbuild eq $_)
-				{
-					print "Circular dependencies detected: $_ => $xbuild\n";
-					exit 1;
-				}
+				die "Circular dependencies detected: $_ => $xbuild\n" if $dep_xbuild eq $_;
 			}
 			push(@all_dep_xbuilds, $dep_xbuild);
 			@dep_dep_xbuilds = calc_deps_private($dep_xbuild, $update, $deep, $empty);
@@ -641,19 +624,11 @@ sub calc_deps_private($$$$)
 			if (!$dep_xbuild)
 			{
 				$_xbuild = find_xbuild($dep_atom);
-				if (!$_xbuild)
-				{
-					print "Package not found for this atom: $dep_atom\n";
-					exit 1;
-				}
+				die "Package not found for this atom: $dep_atom\n" if !$_xbuild;
 				# before we going to recurse check circular dependencies...
 				foreach (@_xbuilds_stack)
 				{
-					if ($_xbuild eq $_)
-					{
-						print "Circular dependencies detected: $_ => $xbuild\n";
-						exit 1;
-					}
+					die "Circular dependencies detected: $_ => $xbuild\n" if $_xbuild eq $_;
 				}
 				push(@all_dep_xbuilds, $_xbuild);
 				@dep_dep_xbuilds = calc_deps_private($_xbuild, $update, $deep, $empty);
@@ -664,11 +639,7 @@ sub calc_deps_private($$$$)
 				if ($update || $deep)
 				{
 					$_xbuild = find_xbuild($dep_atom);
-					if (!$_xbuild)
-					{
-						print "Package not found for this atom: $dep_atom\n";
-						exit 1;
-					}
+					die "Package not found for this atom: $dep_atom\n" if !$_xbuild;
 				}
 				if ($update)
 				{
@@ -681,11 +652,7 @@ sub calc_deps_private($$$$)
 					# before we going into recursion check circular dependencies...
 					foreach (@_xbuilds_stack)
 					{
-						if ($_xbuild eq $_)
-						{
-							print "Circular dependencies detected: $_ => $xbuild\n";
-							exit 1;
-						}
+						die "Circular dependencies detected: $_ => $xbuild\n" if $_xbuild eq $_;
 					}
 					@dep_dep_xbuilds = calc_deps_private($_xbuild, $update, $deep, $empty);
 					push(@all_dep_xbuilds, @dep_dep_xbuilds) if @dep_dep_xbuilds;
