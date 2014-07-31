@@ -8,4 +8,7 @@ then
 	mkdir "${WORKDIR_TEMP}" || eerror "Can't create temp dir"
 fi
 
-cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
+if [ "x${A}" != "x" ]
+then
+	cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
+fi

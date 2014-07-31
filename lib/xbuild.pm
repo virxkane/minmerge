@@ -13,6 +13,8 @@ xbuild - Various usefull function to work with xbuild files.
 	import shellscript;
 	require "<custom libs path>/pkg_version.pm";
 	import pkg_version;
+	require "<custom libs path>/my_chomp.pm";
+	import my_chomp;
 	require "<custom libs path>/pkgdb.pm";
 	import pkgdb;
 	require "<custom libs path>/xbuild.pm";
@@ -233,7 +235,7 @@ sub merge_package($$$$)
 	my $tmp;
 	my $fname;
 	my $targ_fname;
-	my $res;
+	my $res = 1;
 	my $opstatus;
 	my $fileflag = "";
 	my @_st;
@@ -250,7 +252,7 @@ sub merge_package($$$$)
 		next if $line eq $prefix;
 		$fname = $instdir . $line;
 		$line = substr($line, $prefix_len);
-		next if length($line) == 0;
+		next if !$fname || length($line) == 0;
 		if (substr($line, 0, 1) ne '/')
 		{
 			print "Found invalid prefix in installed tree!\n";
@@ -267,7 +269,7 @@ sub merge_package($$$$)
 			# create dir in live filesystem
 			if (-f $targ_fname)
 			{
-				print("Found file $targ_fname but must be directory!\n");
+				print("Found file $targ_fname but should be directory!\n");
 				$res = 0;
 			}
 			else
@@ -304,6 +306,7 @@ sub merge_package($$$$)
 			}
 			else
 			{
+				# TODO: if file readonly forced overwrite it.
 				$res = File::Copy::copy($fname, $targ_fname);
 				if ($res == 1)
 				{
@@ -383,8 +386,129 @@ arguments:
 sub unmerge_package($$$$;$)
 {
 	my ($prefix, $prefix_w32, $pkgdbdir, $xbuild, $force) = @_;
-	my $res = 0;
-	;
+	my $pkgcont = $pkgdbdir . "/CONTENTS";
+
+	my $res = 1;
+	my $prefix_len = length($prefix);
+	my $tmp;
+	my $fh;
+	if (!open($fh, "< $pkgcont"))
+	{
+		print("Can't open file $pkgcont\n");
+		return 0;
+	}
+	my @lines = <$fh>;
+	close($fh);
+	my $line;
+	my $len;
+	my $fileflag;
+	my $opstatus;
+	my ($type, $fname, $hash, $modtime);
+	my ($etype, $ehash, $emodtime);
+	my @dirlist = ();
+	my $ret;
+	foreach $line (@lines)
+	{
+		my_chomp::my_chomp;
+		next if !$line;
+		($type, $fname, $hash, $modtime) = split(/\s+/, $line, 4);
+		$tmp = substr($fname, 0, $prefix_len);
+		if ($tmp ne $prefix)
+		{
+			print "Found invalid prefix in installed package: $tmp\n";
+			return 0;
+		}
+		next if $fname eq $prefix;
+		$fname = substr($fname, $prefix_len);
+		next if !$fname || length($fname) == 0;
+		if (substr($fname, 0, 1) ne '/')
+		{
+			print "Found invalid prefix in installed package!\n";
+			return 0;
+		}
+		$fname = $prefix_w32 . $fname;
+	#print "type=$type; fname=$fname, hash=$hash, modtime=$modtime\n";
+		if (-e $fname)
+		{
+			$fileflag = "";
+			if ($type eq "fil")
+			{
+				$ehash = file_md5hash($fname);
+				(undef,undef,undef,undef,undef,undef,undef,undef,undef,$emodtime,undef,undef,undef) = stat($fname);
+	#print "ehash=$ehash, emodtime=$emodtime\n\n";
+			}
+			else
+			{
+				$ehash = "";
+				$emodtime = "";
+			}
+			if ($type eq "fil")
+			{
+				if ($hash ne $ehash || $modtime != $emodtime)
+				{
+					# file is changed!
+					#print "M   $fname modified!!!\n";
+					#print "    hash=$hash, ehash=$ehash\n";
+					$fileflag = "mod";
+					if (!$force)
+					{
+						printf "--- %-7s fil %s\n", $fileflag, $fname;
+						next;
+					}
+				}
+				# OK, delete this file
+				$ret = unlink($fname);
+				if ($ret == 1)
+				{
+					$opstatus = "<<<";
+				}
+				else
+				{
+					$opstatus = "---";
+					$fileflag .= " err";
+					$res = 0;
+				}
+				$len = length($fileflag);
+				if ($len > 7)
+				{
+					$fileflag = substr($fileflag, 0, 7);
+				}
+				printf "%s %-7s fil %s\n", $opstatus, $fileflag, $fname;
+			}
+			elsif ($type eq "dir")
+			{
+				push(@dirlist, $fname);
+			}
+		}
+		last if !$res;
+	}
+	return $res if !$res;
+	if (scalar(@dirlist) > 0)
+	{
+		@dirlist = sort { 
+							return 1 if $main::a lt $main::b;
+							return -1 if $main::a gt $main::b;
+							return 0;			
+						} @dirlist;
+		foreach $fname (@dirlist)
+		{
+			$fileflag = "";
+			$ret = rmdir($fname);
+			if ($ret == 1)
+			{
+				$opstatus = "<<<";
+			}
+			else
+			{
+				$opstatus = "---";
+				$fileflag = "!empty";
+				#$res = 0;
+			}
+			printf "%s %-7s dir %s\n", $opstatus, $fileflag, $fname;
+			last if !$res;
+		}
+	}
+	# TODO: remove $pkgdbdir recursively
 	return $res;
 }
 

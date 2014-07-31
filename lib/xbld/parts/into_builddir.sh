@@ -22,5 +22,8 @@ then
 	fi
 	cd "${WORKDIR}/${PF}-build"
 else
-	cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
+	if [ "x${A}" != "x" ]
+	then
+		cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
+	fi
 fi

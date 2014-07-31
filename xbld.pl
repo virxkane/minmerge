@@ -91,6 +91,8 @@ require "$MINMERGE_PATH/lib/msyspathmap.pm";
 import msyspathmap;
 require "$MINMERGE_PATH/lib/pkg_version.pm";
 import pkg_version;
+require "$MINMERGE_PATH/lib/my_chomp.pm";
+import my_chomp;
 require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
 require "$MINMERGE_PATH/lib/xbuild.pm";
@@ -108,8 +110,8 @@ if (length($prefix) > 1 && substr($prefix, length($prefix) - 1, 1) eq '/')
 }
 my $prefix_w32 = posix2w32path($prefix);
 my $pkgdbbase = $prefix_w32 . "/var/db/pkg";
-#my $portdir = get_minmerge_configval("PORTDIR");
-#my $portdir_w32 = posix2w32path($portdir);
+my $portdir = get_minmerge_configval("PORTDIR");
+my $portdir_w32 = posix2w32path($portdir);
 my %features;
 {
 	my $str = get_minmerge_configval("FEATURES");
@@ -141,6 +143,7 @@ my @source_mirrors;
 }
 my $tmpdir = get_minmerge_configval("TMPDIR");
 $tmpdir = posix2w32path($tmpdir);
+setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_w32, metadata => $pkgdbbase});
 
 # main
 my $xbuild;
@@ -481,7 +484,7 @@ if ($cmds{install})
 		touch_to_filelist($instdir, \@dirlist);
 		if (!$restrict{strip})
 		{
-			print "Strip executables and libraries:\n";
+			print " * Strip executables and libraries:\n";
 			strip_binary_list($instdir, \@dirlist);
 		}
 		close $fh if open($fh, "> $label");
@@ -536,9 +539,9 @@ if ($cmds{qmerge})
 	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
 	if ($ixbuild)
 	{
-		my $info = xbuild_info($ixbuild);
+		my %info = xbuild_info($ixbuild);
 		print " * Safely unmerging already-installed instance of $info{cat}/$info{pf}...\n";
-		$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir, $ixbuild);
+		$ret = unmerge_package($prefix, $prefix_w32, "$pkgdbbase/$info{cat}/$info{pf}", $ixbuild);
 		die "Unmerge $info{cat}/$info{pf} failed!" if !$ret;
 	}
 	File::Path::mkpath($pkgdbdir);
@@ -558,7 +561,7 @@ if ($cmds{prerm})
 }
 if ($cmds{unmerge})
 {
-	print " * Unmerging package $info{cat}/$info{pf}...\n";
+	print " * Unmerging package $xbuild_info{cat}/$xbuild_info{pf}...\n";
 	$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir, $xbuild);
 	die "Unmerge $xbuild_info{cat}/$xbuild_info{pf} failed!" if !$ret;	
 }

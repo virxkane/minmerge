@@ -43,12 +43,15 @@ pkg_setup()
 
 src_unpack()
 {
-	unpack ${A}
-	if [ $? -ne 0 ]
+	if [ "x${A}" != "x" ]
 	then
-		return $?
+		unpack ${A}
+		if [ $? -ne 0 ]
+		then
+			return $?
+		fi
+		cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
 	fi
-	cd "${SOURCES_DIR}" || eerror "Can't cd to sources directory!"
 }
 
 src_prepare()
@@ -58,17 +61,26 @@ src_prepare()
 
 src_configure()
 {
-	econf
+	if [ "x${A}" != "x" ]
+	then
+		econf
+	fi
 }
 
 src_compile()
 {
-	emake
+	if [ "x${A}" != "x" ]
+	then
+		emake
+	fi
 }
 
 src_install()
 {
-	emake_install
+	if [ "x${A}" != "x" ]
+	then
+		emake_install
+	fi
 }
 
 src_test()

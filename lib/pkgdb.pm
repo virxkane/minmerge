@@ -9,9 +9,11 @@ pkgdb - Methods for getting various information about `mingw-portage' packages.
 
 =head1 SYNOPSIS
 
-    require "<custom libs path>/pkg_version.pm";
+	require "<custom libs path>/pkg_version.pm";
 	import pkg_version;
-    require "<custom libs path>/pkgdb.pm";
+	require "<custom libs path>/my_chomp.pm";
+	import my_chomp;
+	require "<custom libs path>/pkgdb.pm";
 	import pkgdb;
 
 	$portage_info{portdir} = "c:/msys/1.0/build/portage";
@@ -349,7 +351,7 @@ sub find_xbuild_private($$)
 							}
 							else
 							{
-								print "$dir_ent have invalid version number, skipped!\n";
+								print "$dir_ent have invalid version number ($cand_ver_s), skipped!\n";
 							}
 						}
 					}
@@ -398,7 +400,7 @@ sub find_xbuild_private($$)
 		}
 		else
 		{
-			#print "No such file or directory: $dirname\n";
+			print "No such file or directory: $dirname\n";
 			return $res;
 		}
 	}
@@ -427,7 +429,6 @@ sub find_xbuild_private($$)
 			}
 		}
 	}
-
 	return $res;
 }
 
@@ -470,7 +471,7 @@ sub xbuild_info($)
 	}
 
 	$idx = index($filename, '-');
-	if ($idx > 0 && substr($filename, $idx + 1, 1) =~ m/\D/)
+	while ($idx > 0 && substr($filename, $idx + 1, 1) =~ m/\D/)
 	{
 		$idx = index($filename, '-', $idx + 1);
 	}
@@ -503,8 +504,6 @@ sub xbuild_info($)
 	return %res;
 }
 
-sub my_chomp;
-
 =item C<add_to_world>
 X<add_to_world> 
 
@@ -526,7 +525,7 @@ sub add_to_world($)
 		my @lines = <$fh>;
 		foreach (@lines)
 		{
-			my_chomp;
+			my_chomp::my_chomp;
 			if ($_ eq $record)
 			{
 				$found = 1;
@@ -573,7 +572,7 @@ sub remove_from_world($)
 		sort @lines;
 		foreach (@lines)
 		{
-			my_chomp;
+			my_chomp::my_chomp;
 			print $tw_fh "$_\n" if $_ ne $record;
 		}
 		close($fh);
@@ -610,7 +609,7 @@ sub is_in_world($)
 		@lines = <$fh>;
 		foreach (@lines)
 		{
-			my_chomp;
+			my_chomp::my_chomp;
 			if ($_ eq $record)
 			{
 				$found = 1;
@@ -638,49 +637,12 @@ sub get_world_set()
 		@lines = <$fh>;
 		foreach (@lines)
 		{
-			my_chomp;
+			my_chomp::my_chomp;
 			push(@packages, $_);
 		}
 		close($fh);
 	}
 	return @packages;
-}
-
-# In msys perl standard function chomp don't remove \r char from sequence '\r\n'.
-sub my_chomp
-{
-	my $res = 0;
-	my $line;
-	if (defined($_[0]))
-	{
-		$line = \$_[0];
-	}
-	else
-	{
-		$line = \$_;
-	}
-	my $len = length($$line);
-	my $c;
-	if ($len > 0)
-	{
-		$c = ord(substr($$line, $len - 1, 1)); 
-		if ($c == 0x0A)
-		{
-			$$line = substr($$line, 0, $len - 1);
-			$len--;
-			$res++;
-		}
-	}
-	if ($len > 0)
-	{
-		$c = ord(substr($$line, $len - 1, 1)); 
-		if ($c == 0x0D)
-		{
-			$$line = substr($$line, 0, $len - 1);
-			$res++;
-		}
-	}
-	return $res;
 }
 
 1;

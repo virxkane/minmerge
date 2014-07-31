@@ -181,6 +181,8 @@ require "$MINMERGE_PATH/lib/shellscript.pm";
 import shellscript;
 require "$MINMERGE_PATH/lib/msyspathmap.pm";
 import msyspathmap;
+require "$MINMERGE_PATH/lib/my_chomp.pm";
+import my_chomp;
 require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
 require "$MINMERGE_PATH/lib/xbuild.pm";
@@ -468,7 +470,10 @@ foreach $xbuild (@all_xbuilds)
 {
 	$current++;
 	%xbuild_info = xbuild_info($xbuild);
-	print ">>> Emerging ($current of " . ($#all_xbuilds + 1) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+	if (!$s_unmerge)
+	{
+		print ">>> Emerging ($current of " . ($#all_xbuilds + 1) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+	}
 	system($^X, $XBUILD, $xbuild, $xbuild_cmds);
 	if ($?)
 	{
