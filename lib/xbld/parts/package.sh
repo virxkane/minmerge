@@ -1,1 +1,1 @@
-make_package || die "package failed!"
+make_package

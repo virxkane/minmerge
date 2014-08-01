@@ -1,1 +1,1 @@
-src_install || die "install failed!"
+src_install

@@ -482,7 +482,6 @@ foreach $xbuild (@all_xbuilds)
 	}
 	else
 	{
-		# TODO: may be move to xbld.pl ???
 		if (!$s_unmerge)
 		{
 			if (!$s_oneshot)

@@ -1,1 +1,1 @@
-src_compile || die "compile failed!"
+src_compile

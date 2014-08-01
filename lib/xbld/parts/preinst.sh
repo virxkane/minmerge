@@ -1,1 +1,1 @@
-pkg_preinst || die "preinst failed!"
+pkg_preinst

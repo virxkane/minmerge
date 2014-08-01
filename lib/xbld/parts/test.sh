@@ -1,1 +1,1 @@
-src_test || die "test failed!"
+src_test

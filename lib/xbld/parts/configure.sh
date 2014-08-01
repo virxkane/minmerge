@@ -1,1 +1,1 @@
-src_configure || die "configure failed!"
+src_configure

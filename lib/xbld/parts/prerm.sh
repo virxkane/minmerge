@@ -1,1 +1,1 @@
-pkg_prerm || die "prerm failed!"
+pkg_prerm

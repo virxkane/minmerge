@@ -384,62 +384,6 @@ emake_install()
 	fi
 }
 
-make_tmpcontent()
-{
-	local pwd1=`pwd`
-	cd "$INSTDIR"
-	find . -print > "${TMPCONT}" 2>/dev/null
-	# update modtime of each file to current time
-	# later in make_content function this time saved in content list.
-	# And in make_package function files saved also with this time.
-	# This is need to corrent update package (see merge.pl).
-	for file in `cat ${TMPCONT}`
-	do
-		if [ -f "${file}" ]
-		then
-			touch "${file}"
-		fi
-	done
-	cd "${pwd1}"
-}
-
-make_content()
-{
-	ebegin "Make package contents... "
-	local d=`dirname ${PKGCONT}`
-	mmkdir "$d"
-	local pwd1=`pwd`
-	cd "$INSTDIR"
-
-	local file=
-	local ffile=
-	local md5hash=
-	local modtime=
-	# truncate file if exist
-	cat /dev/null > "${PKGCONT}"
-	for file in `cat ${TMPCONT}`
-	do
-		# cut first character '.'
-		ffile=`echo "${file}" | cut -c 2-`
-		if test "x${ffile}" = "x" -o "x${ffile}" = "x${PREFIX}"
-		then
-			continue
-		fi
-		if test -d "${file}"
-		then
-			echo -e "dir\t${ffile}" >> "${PKGCONT}"
-		else
-			md5hash=`md5hash "${file}"`
-			modtime=`filemodtime "${file}"`
-			echo -e "fil\t${ffile}\t${md5hash}\t${modtime}" >> "${PKGCONT}"
-		fi
-	done
-	rm -f "${tmplist}"
-	cd "$pwd1"
-	eend "OK"
-	return 0
-}
-
 make_package()
 {
 	einfo "Make package archive..."
@@ -449,11 +393,4 @@ make_package()
 	ret=$?
 	cd "$pwd1"
 	return $ret
-}
-
-merge()
-{
-	einfo "Merge package to system..."
-	perl ${XMERGE_PATH}/lib/merge.pl "${INSTDIR}" "${TMPCONT}"
-	return $?
 }

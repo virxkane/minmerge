@@ -1,1 +1,1 @@
-pkg_setup || die "setup failed!"
+pkg_setup

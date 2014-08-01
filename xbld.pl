@@ -547,7 +547,7 @@ if ($cmds{qmerge})
 	File::Path::mkpath($pkgdbdir);
 	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
 	# TODO: copy other information to metadata dir ($pkgdbdir) about compilation process...
-	make_pkg_contents($pkgdbdir . "/CONTENTS", $instdir, \@dirlist);
+	make_pkg_contents($prefix, $pkgdbdir . "/CONTENTS", $instdir, \@dirlist);
 }
 if ($cmds{postinst})
 {
@@ -567,7 +567,10 @@ if ($cmds{unmerge})
 }
 if ($cmds{postrm})
 {
-	$ret = script_and_run_command($xbuild, 'postrm', undef);
+	# TODO: такого файла в дереве portage уже может и не быть,
+	# а в $pkgdbdir уже нет
+	$x = "$portdir_w32/$xbuild_info{cat}/$xbuild_info{pn}/$xbuild_info{pf}.$xbuild_info{bldext}";
+	$ret = script_and_run_command($x, 'postrm', undef);
 	die "Postrm failed!\n" if $ret != 0;
 }
 if ($cmds{clean})

@@ -40,6 +40,7 @@ use strict;
 use File::Temp qw/tempfile/;
 use Digest::MD5;
 use File::Copy;
+use File::Path;
 
 require Exporter;
 
@@ -344,10 +345,10 @@ sub file_md5hash($)
 	return $res;
 }
 
-sub make_pkg_contents($$$)
+sub make_pkg_contents($$$$)
 {
 	print " * Make package contents... ";
-	my ($fname, $instdir, $ref_dirlist) = @_;
+	my ($prefix, $fname, $instdir, $ref_dirlist) = @_;
 	my ($file, $ifile);
 	my $mtime;
 	my $fh;
@@ -355,6 +356,7 @@ sub make_pkg_contents($$$)
 	foreach (@$ref_dirlist)
 	{
 		$file = '/' . $_;
+		next if $file eq $prefix;
 		$ifile = $instdir . $file;
 		if (-d $ifile)
 		{
@@ -486,8 +488,8 @@ sub unmerge_package($$$$;$)
 	if (scalar(@dirlist) > 0)
 	{
 		@dirlist = sort { 
-							return 1 if $main::a lt $main::b;
-							return -1 if $main::a gt $main::b;
+							return 1 if $a lt $b;
+							return -1 if $a gt $b;
 							return 0;			
 						} @dirlist;
 		foreach $fname (@dirlist)
@@ -508,7 +510,11 @@ sub unmerge_package($$$$;$)
 			last if !$res;
 		}
 	}
-	# TODO: remove $pkgdbdir recursively
+	# remove $pkgdbdir recursively
+	if ($res)
+	{
+		$res = File::Path::rmtree($pkgdbdir) > 0;
+	}
 	return $res;
 }
 

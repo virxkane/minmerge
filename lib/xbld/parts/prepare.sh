@@ -1,1 +1,1 @@
-src_prepare || die "prepare failed!"
+src_prepare

@@ -1,1 +1,1 @@
-pkg_postinst || die "postinst failed!"
+pkg_postinst
