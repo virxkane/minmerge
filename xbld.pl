@@ -17,7 +17,7 @@ use Time::Local;
 use Cwd;
 use POSIX;
 
-sub script_and_run_command($$$);
+sub script_and_run_command($$$$);
 sub inject_part($$);
 sub src_uri_list2hash(@);
 sub fetch_file($$;$);
@@ -156,6 +156,7 @@ my $ret;
 
 my $workdir;
 my $workdir_temp;
+my $buildlog;
 my $instdir;
 my $pkgdbdir;
 my %src_uri_hash;
@@ -245,6 +246,7 @@ foreach (@commands)
 # xbuild's variables
 $workdir = "$tmpdir/$xbuild_info{pn}-build";
 $workdir_temp = "$workdir/temp";
+$buildlog = "$workdir_temp/build.log";
 $instdir = "$workdir/image";
 $pkgdbdir = "$pkgdbbase/$xbuild_info{cat}/$xbuild_info{pf}";
 
@@ -340,7 +342,7 @@ if ($cmds{fetch})
 }
 if ($cmds{setup})
 {
-	$ret = script_and_run_command($xbuild, 'setup', undef);
+	$ret = script_and_run_command($xbuild, 'setup', undef, $buildlog);
 	die "Setup failed!\n" if $ret != 0;
 }
 if ($cmds{unpack})
@@ -348,9 +350,9 @@ if ($cmds{unpack})
 	my $label = "$workdir/.unpacked";
 	if (! -e $label)
 	{
-		$ret = script_and_run_command($xbuild, 'clean', undef);
+		$ret = script_and_run_command($xbuild, 'clean', undef, $buildlog);
 		die "Cleanup failed!\n" if $ret != 0;
-		$ret = script_and_run_command($xbuild, 'unpack', undef);
+		$ret = script_and_run_command($xbuild, 'unpack', undef, $buildlog);
 		die "Unpack failed!\n" if $ret != 0;
 		my $fh;
 		close $fh if open($fh, "> $label");
@@ -371,7 +373,7 @@ if ($cmds{prepare})
 	}
 	if (! -e $label)
 	{
-		$ret = script_and_run_command($xbuild, 'prepare', 1);
+		$ret = script_and_run_command($xbuild, 'prepare', 1, $buildlog);
 		die "Prepare failed!\n" if $ret != 0;
 		my $fh;
 		close $fh if open($fh, "> $label");
@@ -392,9 +394,23 @@ if ($cmds{configure})
 	}
 	if (! -e $label)
 	{
-		$ret = script_and_run_command($xbuild, 'configure', 1);
-		die "configure failed!\n" if $ret != 0;
+		# save some config values
 		my $fh;
+		open($fh, "> $workdir_temp/CBUILD") || die "Can't create $workdir_temp/CBUILD!\n";
+		print $fh get_minmerge_configval("CBUILD") . "\n";
+		close($fh);
+		open($fh, "> $workdir_temp/CHOST") || die "Can't create $workdir_temp/CHOST!\n";
+		print $fh get_minmerge_configval("CHOST") . "\n";
+		close($fh);
+		open($fh, "> $workdir_temp/CFLAGS") || die "Can't create $workdir_temp/CFLAGS!\n";
+		print $fh get_minmerge_configval("CFLAGS") . "\n";
+		close($fh);
+		open($fh, "> $workdir_temp/CXXFLAGS") || die "Can't create $workdir_temp/CXXFLAGS!\n";
+		print $fh get_minmerge_configval("CXXFLAGS") . "\n";
+		close($fh);
+		# run command
+		$ret = script_and_run_command($xbuild, 'configure', 1, $buildlog);
+		die "configure failed!\n" if $ret != 0;
 		close $fh if open($fh, "> $label");
 	}
 	else
@@ -413,10 +429,13 @@ if ($cmds{compile})
 	}
 	if (! -e $label)
 	{
-		$ret = script_and_run_command($xbuild, 'compile', 1);
+		$ret = script_and_run_command($xbuild, 'compile', 1, $buildlog);
 		die "compile failed!\n" if $ret != 0;
 		my $fh;
 		close $fh if open($fh, "> $label");
+		open($fh, "> $workdir_temp/BUILD_TIME") || die "Can't create $workdir_temp/BUILD_TIME!\n";
+		print $fh time() . "\n";
+		close($fh);
 	}
 	else
 	{
@@ -434,7 +453,7 @@ if ($cmds{test})
 	}
 	if (! -e $label)
 	{
-		$ret = script_and_run_command($xbuild, 'test', 1);
+		$ret = script_and_run_command($xbuild, 'test', 1, $buildlog);
 		die "test failed!\n" if $ret != 0;
 		my $fh;
 		close $fh if open($fh, "> $label");
@@ -459,7 +478,7 @@ if ($cmds{install})
 		{
 			mkdir($instdir, 0755) || die "Can't create $instdir!\n";
 		}
-		$ret = script_and_run_command($xbuild, 'install', 1);
+		$ret = script_and_run_command($xbuild, 'install', 1, $buildlog);
 		die "Install failed!\n" if $ret != 0;
 		# create list of installed dirs & files.
 		my @dirlist = dir_list($instdir, '');
@@ -502,12 +521,12 @@ if ($cmds{package})
 	{
 		die "Package not installed yet!\n";
 	}
-	$ret = script_and_run_command($xbuild, 'package', 1);
+	$ret = script_and_run_command($xbuild, 'package', 1, , $buildlog);
 	die "package failed!\n" if $ret != 0;
 }
 if ($cmds{preinst})
 {
-	$ret = script_and_run_command($xbuild, 'preinst', 1);
+	$ret = script_and_run_command($xbuild, 'preinst', 1, $buildlog);
 	die "preinst failed!\n" if $ret != 0;
 }
 if ($cmds{qmerge})
@@ -545,18 +564,22 @@ if ($cmds{qmerge})
 		die "Unmerge $info{cat}/$info{pf} failed!" if !$ret;
 	}
 	File::Path::mkpath($pkgdbdir);
+	File::Copy::copy("$workdir_temp/CHOST", "$pkgdbdir/CHOST");
+	File::Copy::copy("$workdir_temp/CBUILD", "$pkgdbdir/CBUILD");
+	File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS");
+	File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS");
+	File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME");
 	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
-	# TODO: copy other information to metadata dir ($pkgdbdir) about compilation process...
-	make_pkg_contents($prefix, $pkgdbdir . "/CONTENTS", $instdir, \@dirlist);
+	make_pkg_contents($prefix, "$pkgdbdir/CONTENTS", $instdir, \@dirlist);
 }
 if ($cmds{postinst})
 {
-	$ret = script_and_run_command($xbuild, 'postinst', undef);
+	$ret = script_and_run_command($xbuild, 'postinst', undef, $buildlog);
 	die "Postinst failed!\n" if $ret != 0;
 }
 if ($cmds{prerm})
 {
-	$ret = script_and_run_command($xbuild, 'prerm', undef);
+	$ret = script_and_run_command($xbuild, 'prerm', undef, $buildlog);
 	die "Prerm failed!\n" if $ret != 0;
 }
 if ($cmds{unmerge})
@@ -570,28 +593,26 @@ if ($cmds{postrm})
 	# TODO: такого файла в дереве portage уже может и не быть,
 	# а в $pkgdbdir уже нет
 	$x = "$portdir_w32/$xbuild_info{cat}/$xbuild_info{pn}/$xbuild_info{pf}.$xbuild_info{bldext}";
-	$ret = script_and_run_command($x, 'postrm', undef);
+	$ret = script_and_run_command($x, 'postrm', undef, $buildlog);
 	die "Postrm failed!\n" if $ret != 0;
 }
 if ($cmds{clean})
 {
-	$ret = script_and_run_command($xbuild, 'clean', undef);
+	$ret = script_and_run_command($xbuild, 'clean', undef, $buildlog);
 	die "Cleanup failed!\n" if $ret != 0;
 }
 
+# End of main.
 
 
 
-
-
-
-
-# generate bash script for xbuild and one command
-sub script_and_run_command($$$)
+# generate bash script for xbuild and one command.
+sub script_and_run_command($$$$)
 {
-	my ($xbuild, $command, $use_source) = @_;
+	my ($xbuild, $command, $use_source, $logfile) = @_;
 	my %xbuild_info = pkgdb::xbuild_info($xbuild);
 	my ($fh, $fname) = tempfile(TMPDIR => 1, SUFFIX => ".sh");
+	my $ret = -1;
 	$fname =~ tr/\\/\//;
 
 	print $fh "#!/bin/sh\n\n";
@@ -619,10 +640,9 @@ sub script_and_run_command($$$)
 	print $fh "	CMAKE_SOURCES_DIR=\"\${SOURCES_DIR}\"\n";
 	print $fh "fi\n";
 	print $fh "source ${MINMERGE_PATH}/lib/xbld/library.sh\n";
-	
 	if ($use_source)
 	{
-		if ($command eq 'configure' || $command eq 'compile' || $command eq 'test' || $command eq 'install')
+		if ($command =~ m/configure|compile|test|install/)
 		{
 			inject_part($fh, "into_builddir");
 		}
@@ -632,12 +652,41 @@ sub script_and_run_command($$$)
 		}
 	}
 	inject_part($fh, $command);
-	
 	close($fh);
-	# TODO: redirect output to "build.log"
-	my $ret = system($SHELL, "--login", "-c", $fname);
+
+	$fh = undef;
+	if ($command =~ m/configure|compile|test|install/)
+	{
+		if (!open($fh, ">> $logfile"))
+		{
+			unlink($fname);
+			die "Can't open $logfile!\n";
+		}
+		$fh->autoflush(1);
+	}
+	if ($fh)
+	{
+		my $fh_cmd;
+		if (open($fh_cmd, "$SHELL --login -c $fname 2>&1 |"))
+		{
+			my $saved_autoflush = $|;
+			$| = 1;
+			while (<$fh_cmd>)
+			{
+				print $_;
+				print $fh $_;
+			}
+			close($fh_cmd);
+			$ret = $?;
+			$| = $saved_autoflush;
+		}
+		close($fh);
+	}
+	else
+	{
+		$ret = system($SHELL,  "--login", "-c", $fname);
+	}
 	unlink($fname);
-	# TODO: check result/return code
 	return $ret;
 }
 
@@ -852,10 +901,9 @@ sub fetch_file($$;$)
 		local *CHLD_OUT;
 		local *CHLD_ERR;
 		local *CHLD_IN;
-		my $pid;
 		my @lines;
 		my $line;
-		$pid = IPC::Open3::open3(\*CHLD_IN, \*CHLD_OUT, \*CHLD_ERR, "wget", "--server-response", "--spider", "$uri");
+		my $pid = IPC::Open3::open3(\*CHLD_IN, \*CHLD_OUT, \*CHLD_ERR, "wget", "--server-response", "--spider", "$uri");
 		$line = <CHLD_OUT>;
 		$line = <CHLD_ERR> if !$line;
 		while ($line)

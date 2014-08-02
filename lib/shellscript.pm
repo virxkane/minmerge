@@ -60,7 +60,7 @@ sub run_shellscript($)
 	# replace '\' to '/' in path
 	$script =~ tr/\\/\//;
 	
-	$pid = open2(*CHLD_OUT, *CHLD_IN, $shell, "--login", "-c", "$script");
+	$pid = IPC::Open2::open2(\*CHLD_OUT, \*CHLD_IN, $shell, "--login", "-c", "$script");
 	#print CHLD_IN "Hello world!\n\n\n\n";
 	while (<CHLD_OUT>)
 	{
