@@ -400,7 +400,7 @@ sub find_xbuild_private($$)
 		}
 		else
 		{
-			print "No such file or directory: $dirname\n";
+			#print "No such file or directory: $dirname\n";
 			return $res;
 		}
 	}

@@ -274,6 +274,11 @@ $pkgdbdir = "$pkgdbbase/$xbuild_info{cat}/$xbuild_info{pf}";
 
 # Perform commands
 
+if ($cmds{clean})
+{
+	$ret = script_and_run_command($xbuild, 'clean', undef, $buildlog);
+	die "Cleanup failed!\n" if $ret != 0;
+}
 if ($cmds{fetch})
 {
 	# 1. check dist files
@@ -569,6 +574,7 @@ if ($cmds{qmerge})
 	File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS");
 	File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS");
 	File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME");
+	# TODO: save environment into file
 	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
 	make_pkg_contents($prefix, "$pkgdbdir/CONTENTS", $instdir, \@dirlist);
 }
