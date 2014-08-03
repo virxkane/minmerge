@@ -165,9 +165,9 @@ if (!$MSYS_PATH || !$MINMERGE_PATH)
 {
 	print << 'EOF';
 minmerge not configured. You must configure minmerge, for example,
-./minmerge.pl --setmsys c:/msys/1.0" --setminmerge c:/msys/1.0/build/minmerge
+./minmerge.pl --setmsys c:/msys/1.0 --setminmerge c:/msys/1.0/build/minmerge
  or 
-./minmerge.pl --setmsys c:/msys/1.0" --setminmerge $PWD
+./minmerge.pl --setmsys c:/msys/1.0 --setminmerge $PWD
 EOF
 	exit 1;
 }
