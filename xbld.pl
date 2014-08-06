@@ -635,11 +635,11 @@ sub script_and_run_command($$$$)
 	# you can redefine this variables in xbuild file.
 	print $fh "SOURCES_DIR=\${PF}\n";
 	print $fh "source ${MINMERGE_PATH}/lib/xbld/deffuncs.sh\n";
-	print $fh "A=";
+	print $fh "A=\"";
 	foreach (@A)
 	{
 		print $fh $_ . ' ';
-	} print $fh "\n";
+	} print $fh "\"\n";
 	print $fh "source $xbuild\n";
 	print $fh "if [ \"x\${CMAKE_SOURCES_DIR}\" = \"x\" ]\n";
 	print $fh "then\n";
