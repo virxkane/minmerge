@@ -243,12 +243,16 @@ epatch()
 
 eautoreconf()
 {
-	if [ ! -f Makefile.am -a ! -f Makefile.in ]
-	then
-		eerror "This project not use automake!"
-		return
-	fi
-
+	local skip_autoheader=0;
+	while [ "x$1" != "x" ]
+	do
+		case "$1" in
+		"skip-autoheader" )
+			skip_autoheader=1
+			;;
+		esac
+		shift
+	done
 	local acfile=configure.in
 	if [ ! -f "${acfile}" ]
 	then
@@ -283,12 +287,15 @@ eautoreconf()
 	test $? -eq 0 && eend "ok" || eerror "failed"
 
 	local need_autoheader=0
-	grep "AM_CONFIG_HEADER" "${acfile}" > /dev/null 2>&1
-	test $? -eq 0 && need_autoheader=1
-	if [ $need_autoheader -eq 0 ]
+	if [ $skip_autoheader -ne 1 ]
 	then
-		grep "AC_CONFIG_HEADER" "${acfile}" > /dev/null 2>&1
+		grep "AM_CONFIG_HEADER" "${acfile}" > /dev/null 2>&1
 		test $? -eq 0 && need_autoheader=1
+		if [ $need_autoheader -eq 0 ]
+		then
+			grep "AC_CONFIG_HEADER" "${acfile}" > /dev/null 2>&1
+			test $? -eq 0 && need_autoheader=1
+		fi
 	fi
 
 	if [ $need_autoheader -eq 1 ]
