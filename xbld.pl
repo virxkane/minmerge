@@ -633,7 +633,7 @@ sub script_and_run_command($$$$)
 	print $fh "PF=$xbuild_info{pf}\n";
 	print $fh "P=$xbuild_info{p}\n";
 	# you can redefine this variables in xbuild file.
-	print $fh "SOURCES_DIR=\${PF}\n";
+	print $fh "SOURCES_DIR=\${P}\n";
 	print $fh "source ${MINMERGE_PATH}/lib/xbld/deffuncs.sh\n";
 	print $fh "A=\"";
 	foreach (@A)
