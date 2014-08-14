@@ -418,7 +418,7 @@ sub unmerge_package($$$$;$)
 		if ($tmp ne $prefix)
 		{
 			print "Found invalid prefix in installed package: $tmp\n";
-			return 0;
+			#return 0;
 		}
 		next if $fname eq $prefix;
 		$fname = substr($fname, $prefix_len);
@@ -426,7 +426,7 @@ sub unmerge_package($$$$;$)
 		if (substr($fname, 0, 1) ne '/')
 		{
 			print "Found invalid prefix in installed package!\n";
-			return 0;
+			#return 0;
 		}
 		$fname = $prefix_w32 . $fname;
 	#print "type=$type; fname=$fname, hash=$hash, modtime=$modtime\n";
