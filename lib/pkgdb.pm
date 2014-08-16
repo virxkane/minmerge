@@ -517,15 +517,13 @@ sub add_to_world($)
 	my %info = xbuild_info($xbuild);
 	my $record = "$info{cat}/$info{pn}";
 	my $found = 0;
-	my @lines;
 	my $res = 0;
 	#$world =~ tr|/|\\|;
 	if (open($fh, "< $world"))
 	{
-		my @lines = <$fh>;
-		foreach (@lines)
+		while (<$fh>)
 		{
-			my_chomp::my_chomp;
+			my_chomp::my_chomp($_);
 			if ($_ eq $record)
 			{
 				$found = 1;
@@ -572,7 +570,7 @@ sub remove_from_world($)
 		sort @lines;
 		foreach (@lines)
 		{
-			my_chomp::my_chomp;
+			my_chomp::my_chomp($_);
 			print $tw_fh "$_\n" if $_ ne $record;
 		}
 		close($fh);
@@ -603,13 +601,11 @@ sub is_in_world($)
 	my %info = xbuild_info($xbuild);
 	my $record = "$info{cat}/$info{pn}";
 	my $found = 0;
-	my @lines;
 	if (open($fh, "< $world"))
 	{
-		@lines = <$fh>;
-		foreach (@lines)
+		while (<$fh>)
 		{
-			my_chomp::my_chomp;
+			my_chomp::my_chomp($_);
 			if ($_ eq $record)
 			{
 				$found = 1;
@@ -631,13 +627,11 @@ sub get_world_set()
 	my $world = $portage_info{metadata} . "/world";
 	my $fh;
 	my @packages;
-	my @lines;
 	if (open($fh, "< $world"))
 	{
-		@lines = <$fh>;
-		foreach (@lines)
+		while (<$fh>)
 		{
-			my_chomp::my_chomp;
+			my_chomp::my_chomp($_);
 			push(@packages, $_);
 		}
 		close($fh);

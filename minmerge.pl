@@ -484,7 +484,7 @@ foreach $xbuild (@all_xbuilds)
 	{
 		if (!$s_unmerge)
 		{
-			if (!$s_oneshot)
+			if (!$s_oneshot  && !$s_fetchonly)
 			{
 				foreach (@xbuilds)
 				{

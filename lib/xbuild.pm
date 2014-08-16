@@ -117,6 +117,10 @@ sub get_xbuild_vars(@)
 	print $fh "#!/bin/sh\n\n";
 	print $fh "source $_minmerge_path/etc/defaults.conf\n";
 	print $fh "source $_minmerge_path/etc/make.conf\n";
+	print $fh "load_module()\n";
+	print $fh "{\n";
+	print $fh "	:\n";
+	print $fh "}\n";
 	print $fh "source $xbuild\n";
 	foreach (@vars)
 	{
@@ -176,6 +180,10 @@ sub get_full_xbuild_vars(@)
 	print $fh "P=$xbuild_info{p}\n";
 	print $fh "SOURCES_DIR=\${PF}\n";
 	print $fh "source $_minmerge_path/lib/xbld/deffuncs.sh\n";
+	print $fh "load_module()\n";
+	print $fh "{\n";
+	print $fh "	:\n";
+	print $fh "}\n";
 
 	print $fh "source $xbuild\n";
 	foreach (@vars)
@@ -411,7 +419,7 @@ sub unmerge_package($$$$;$)
 	my $ret;
 	foreach $line (@lines)
 	{
-		my_chomp::my_chomp;
+		my_chomp::my_chomp $line;
 		next if !$line;
 		($type, $fname, $hash, $modtime) = split(/\s+/, $line, 4);
 		$tmp = substr($fname, 0, $prefix_len);
