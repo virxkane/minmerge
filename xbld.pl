@@ -1046,7 +1046,7 @@ sub strip_binary_list($$)
 			if (S_ISREG($_st[2]))
 			{
 				$bname = File::Basename::basename($_);
-				if ($bname =~ m/^.*\.exe$|^.*\.dll$/ && !($bname =~ m/^.*\dd\.dll$/))
+				if ($bname =~ m/^.*\.exe$|^.*\.dll$|^.*\.so$/ && !($bname =~ m/^.*\dd\.dll$/))
 				{
 					if (strip_binary($fname, 'r'))
 					{
