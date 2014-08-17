@@ -84,6 +84,7 @@ EOF
 }
 
 $SHELL = $MSYS_PATH . '/bin/sh.exe';
+$SHELL = $MSYS_PATH . '/usr/bin/sh.exe' if ! -f $SHELL;
 
 # imports
 require "$MINMERGE_PATH/lib/shellscript.pm";

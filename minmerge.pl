@@ -173,6 +173,7 @@ EOF
 }
 
 $SHELL = $MSYS_PATH . '/bin/sh.exe';
+$SHELL = $MSYS_PATH . '/usr/bin/sh.exe' if ! -f $SHELL;
 $XBUILD = $MINMERGE_PATH . '/xbld.pl';
 
 require "$MINMERGE_PATH/lib/pkg_version.pm";
