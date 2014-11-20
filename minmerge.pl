@@ -227,6 +227,8 @@ if ($s_info)
 	my $makeopts = get_minmerge_configval("MAKEOPTS");
 	my $distdir = get_minmerge_configval("DISTDIR");
 	my $distdir_w32 = posix2w32path($distdir);
+	my $tmpdir = get_minmerge_configval("TMPDIR");
+	my $tmpdir_w32 = posix2w32path($tmpdir);
 	my $perl_path = get_minmerge_configval("PERL_PATH");
 	my $perl_path_w32 = posix2w32path($perl_path);
 	my $python_path = get_minmerge_configval("PYTHON_PATH");
@@ -242,6 +244,7 @@ if ($s_info)
 	print "CXXFLAGS: $cxxflags\n";
 	print "MAKEOPTS: $makeopts\n";
 	print "DISTDIR: $distdir => $distdir_w32\n";
+	print "TMPDIR: $tmpdir => $tmpdir_w32\n";
 	print "FEATURES: $features\n";
 	print "PERL_PATH: $perl_path => $perl_path_w32\n";
 	print "PYTHON_PATH: $python_path => $python_path_w32\n";
