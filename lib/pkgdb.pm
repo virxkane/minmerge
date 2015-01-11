@@ -81,7 +81,7 @@ my %portage_info = (bldext => 'xbuild', prefix => 'c:/mingw', portdir => '/x/', 
 
 # system packages
 my @system_set = ('meta-virtual/system-headers', 'meta-virtual/system-libc',
-				'sys-devel/binutils', 'sys-devel/gcc-core-c++',
+				'sys-devel/binutils', 'sys-devel/gcc-core',
 				'sys-devel/automake', 'sys-devel/libtool',
 				'net-misc/wget');
 
