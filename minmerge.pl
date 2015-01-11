@@ -551,7 +551,7 @@ sub calc_deps_private($$$$)
 	push(@_xbuilds_stack, $xbuild);
 	@dep_atoms = get_depends($xbuild);
 
-	# special value '||' interpret as exclusively OR for left & right atoms.
+	# special value '||' interprets as exclusively OR for left & right atoms.
 	my @tmp_deps;
 	my $left_atom;
 	my $right_atom;
@@ -610,7 +610,7 @@ sub calc_deps_private($$$$)
 		{
 			$dep_atom = substr($dep_atom, 1);
 			$dep_xbuild = find_installed_xbuild($dep_atom);
-			die "$xbuild: Found installed package that blocked me: $dep_atom\n" if $dep_xbuild;
+			die "$xbuild: Found installed package that blocks me: $dep_atom\n" if $dep_xbuild;
 			next;
 		}
 		if ($empty)
