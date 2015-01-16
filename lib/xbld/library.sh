@@ -326,6 +326,7 @@ econf()
 	# now we already in build dir, see part "into_builddir.sh"
 	if [ "x${USE_CMAKE}" = "xyes" ]
 	then
+		eval echo cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} $* "../${CMAKE_SOURCES_DIR}" > ${WORKDIR_TEMP}/CONFIGURE
 		cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} $* "../${CMAKE_SOURCES_DIR}"
 		if [ $? -eq 0 ]
 		then
@@ -347,6 +348,7 @@ econf()
 		else
 			___conf_script=./configure
 		fi
+		eval echo ${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $* > ${WORKDIR_TEMP}/CONFIGURE
 		${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $*
 		if [ $? -eq 0 ]
 		then

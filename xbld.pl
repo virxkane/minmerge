@@ -340,11 +340,12 @@ if ($cmds{fetch})
 				last if $ret;
 			}
 		}
+		# secondly if downloading from mirrors failed - download from original URL.
 		if (!$ret)
 		{
 			$ret = fetch_file($distdir, $uri, $file);
-			die "Fetch $file failed!\n" if !$ret;
 		}
+		die "Fetch $file failed!\n" if !$ret;
 	}
 }
 if ($cmds{setup})
@@ -576,6 +577,11 @@ if ($cmds{qmerge})
 	File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS");
 	File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS");
 	File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME");
+	File::Copy::copy("$workdir_temp/CONFIGURE", "$pkgdbdir/CONFIGURE");
+	if ($features{savelog})
+	{
+		File::Copy::copy("$workdir_temp/build.log", "$pkgdbdir/build.log");
+	}
 	# TODO: save environment into file
 	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
 	make_pkg_contents($prefix, "$pkgdbdir/CONTENTS", $instdir, \@dirlist);

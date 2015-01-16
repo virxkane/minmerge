@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright 2014 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -10,6 +10,8 @@ use warnings;
 
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
+
+use constant MM_VERSION => "0.1.4";
 
 # forward function declarations
 sub calc_deps($;$$$);
@@ -200,7 +202,7 @@ my $prefix_w32;
 my $portdir;
 my $portdir_w32;
 my $pkgdbbase;
-my $features;
+my %features;
 
 my @pkg_atoms;
 my $pkg_atom;
@@ -216,7 +218,16 @@ $prefix_w32 = posix2w32path($prefix);
 $pkgdbbase = $prefix_w32 . "/var/db/pkg";
 $portdir = get_minmerge_configval("PORTDIR");
 $portdir_w32 = posix2w32path($portdir);
-$features = get_minmerge_configval("FEATURES");
+# parse features
+{
+	my $str = get_minmerge_configval("FEATURES");
+	$str =~ s/\s*(.*)\s*/$1/;
+	$str =~ s/\s+/ /;
+	foreach (split(/ /, $str))
+	{
+		$features{$_} = 1;
+	}
+}
 
 if ($s_info)
 {
@@ -225,27 +236,51 @@ if ($s_info)
 	my $cflags = get_minmerge_configval("CFLAGS");
 	my $cxxflags = get_minmerge_configval("CXXFLAGS");
 	my $makeopts = get_minmerge_configval("MAKEOPTS");
-	my $distdir = get_minmerge_configval("DISTDIR");
-	my $distdir_w32 = posix2w32path($distdir);
+	my @distdir;
+	my @distdir_w32;
+	my $i;
+	$distdir[0]= get_minmerge_configval("DISTDIR");
+	$distdir_w32[0] = posix2w32path($distdir[0]);
+	for ($i = 2; $i < 10; $i++)
+	{
+		$distdir[$i - 1] = get_minmerge_configval("DISTDIR$i");
+		next if (!$distdir[$i - 1]);
+		$distdir_w32[$i - 1] = posix2w32path($distdir[$i - 1]);
+	}
+	my $pkgdir = get_minmerge_configval("PKGDIR");
+	my $pkgdir_w32 = posix2w32path($pkgdir);
 	my $tmpdir = get_minmerge_configval("TMPDIR");
 	my $tmpdir_w32 = posix2w32path($tmpdir);
 	my $perl_path = get_minmerge_configval("PERL_PATH");
 	my $perl_path_w32 = posix2w32path($perl_path);
 	my $python_path = get_minmerge_configval("PYTHON_PATH");
 	my $python_path_w32 = posix2w32path($python_path);
+
+	print "version: " . MM_VERSION . "\n";
 	print "minmerge path: $MINMERGE_PATH\n";
 	print "msys path: $MSYS_PATH\n";
 	print "\n";
 	print "PREFIX: $prefix => $prefix_w32\n";
-	print "PORTDIR: $portdir => $portdir_w32\n";
 	print "CHOST: $chost\n";
 	print "CBUILD: $cbuild\n";
 	print "CFLAGS: $cflags\n";
 	print "CXXFLAGS: $cxxflags\n";
 	print "MAKEOPTS: $makeopts\n";
-	print "DISTDIR: $distdir => $distdir_w32\n";
+	print "PORTDIR: $portdir => $portdir_w32\n";
+	print "DISTDIR: $distdir[0] => $distdir_w32[0]\n";
+	for ($i = 2; $i < 10; $i++)
+	{
+		next if (!$distdir[$i-1]);
+		print "DISTDIR$i: $distdir[$i-1] => $distdir_w32[$i-1]\n";
+	}
+	print "PKGDIR: $pkgdir => $pkgdir_w32\n";
 	print "TMPDIR: $tmpdir => $tmpdir_w32\n";
-	print "FEATURES: $features\n";
+	print "FEATURES: ";
+	while (my ($_key, $_val) = each %features)
+	{
+		print $_key . " " if $_val;
+	}
+	print "\n";
 	print "PERL_PATH: $perl_path => $perl_path_w32\n";
 	print "PYTHON_PATH: $python_path => $python_path_w32\n";
 	exit 0;
@@ -277,7 +312,7 @@ elsif ($s_fetchonly)
 else
 {
 	$xbuild_cmds = "merge clean";
-	$xbuild_cmds .= " package" if index($features, "buildpkg") >= 0;
+	$xbuild_cmds .= " package" if $features{buildpkg};
 }
 
 # replace special names 'system' & 'world' to appropriate atoms set
