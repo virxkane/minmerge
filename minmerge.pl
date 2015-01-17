@@ -11,7 +11,7 @@ use warnings;
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.1.4.1";
+use constant MM_VERSION => "0.1.4.2";
 
 # forward function declarations
 sub calc_deps($;$$$);

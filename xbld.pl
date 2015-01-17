@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright 2014 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -576,8 +576,12 @@ if ($cmds{qmerge})
 	$ret = File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS") if ($ret);
 	$ret = File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS") if ($ret);
 	$ret = File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME") if ($ret);
-	$ret = File::Copy::copy("$workdir_temp/CONFIGURE", "$pkgdbdir/CONFIGURE") if ($ret);
-	if ($ret && $features{savelog})
+	if (-f "$workdir_temp/CONFIGURE")
+	{
+		$ret = File::Copy::copy("$workdir_temp/CONFIGURE", "$pkgdbdir/CONFIGURE") if ($ret);
+	}
+	my @_stat = stat("$workdir_temp/build.log");
+	if ($ret && $features{savelog} && @_stat && $_stat[7] != 0)
 	{
 		$ret = File::Copy::copy("$workdir_temp/build.log", "$pkgdbdir/build.log");
 		if ($ret)
