@@ -557,8 +557,7 @@ if ($cmds{qmerge})
 	}
 	else
 	{
-		print "Can't write contents of package!\n";
-		exit 1;
+		die "Can't write contents of package!\n";
 	}
 	print " * Merge package to system...\n";
 	$ret = merge_package($prefix, $prefix_w32, $instdir, \@dirlist);
@@ -572,19 +571,34 @@ if ($cmds{qmerge})
 		die "Unmerge $info{cat}/$info{pf} failed!" if !$ret;
 	}
 	File::Path::mkpath($pkgdbdir);
-	File::Copy::copy("$workdir_temp/CHOST", "$pkgdbdir/CHOST");
-	File::Copy::copy("$workdir_temp/CBUILD", "$pkgdbdir/CBUILD");
-	File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS");
-	File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS");
-	File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME");
-	File::Copy::copy("$workdir_temp/CONFIGURE", "$pkgdbdir/CONFIGURE");
-	if ($features{savelog})
+	$ret = File::Copy::copy("$workdir_temp/CHOST", "$pkgdbdir/CHOST");
+	$ret = File::Copy::copy("$workdir_temp/CBUILD", "$pkgdbdir/CBUILD") if ($ret);
+	$ret = File::Copy::copy("$workdir_temp/CFLAGS", "$pkgdbdir/CFLAGS") if ($ret);
+	$ret = File::Copy::copy("$workdir_temp/CXXFLAGS", "$pkgdbdir/CXXFLAGS") if ($ret);
+	$ret = File::Copy::copy("$workdir_temp/BUILD_TIME", "$pkgdbdir/BUILD_TIME") if ($ret);
+	$ret = File::Copy::copy("$workdir_temp/CONFIGURE", "$pkgdbdir/CONFIGURE") if ($ret);
+	if ($ret && $features{savelog})
 	{
-		File::Copy::copy("$workdir_temp/build.log", "$pkgdbdir/build.log");
+		$ret = File::Copy::copy("$workdir_temp/build.log", "$pkgdbdir/build.log");
+		if ($ret)
+		{
+			$ret = system("xz", "-z", "$pkgdbdir/build.log") == 0;
+			if (!$ret)
+			{
+				print "Can't compress buildlog!\n";
+			}
+		}
 	}
 	# TODO: save environment into file
-	File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild));
-	make_pkg_contents($prefix, "$pkgdbdir/CONTENTS", $instdir, \@dirlist);
+	$ret = File::Copy::copy($xbuild, $pkgdbdir . '/' . File::Basename::basename($xbuild)) if $ret;
+	if ($ret)
+	{
+		make_pkg_contents($prefix, "$pkgdbdir/CONTENTS", $instdir, \@dirlist);
+	}
+	else
+	{
+		die "Failed to copy package information!\n";
+	}
 }
 if ($cmds{postinst})
 {
