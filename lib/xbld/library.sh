@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2010-2014 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2010-2015 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -13,6 +13,7 @@
 # CATEGORY
 # PN, PV, PR, PVR, PF, P, A
 # SOURCES_DIR, CMAKE_SOURCES_DIR
+# FILESDIR, WORKDIR, WORKDIR_TEMP, INSTDIR
 
 export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
 
@@ -20,10 +21,6 @@ export CHOST
 export CFLAGS
 export CXXFLAGS
 
-FILESDIR="${PORTDIR}/${CATEGORY}/${PN}/files"
-WORKDIR="${TMPDIR}/${PN}-build"
-WORKDIR_TEMP="${WORKDIR}/temp"
-INSTDIR="${WORKDIR}/image"
 PKGDBBASE="${PREFIX}/var/db/pkg"
 PKGDBDIR="${PKGDBBASE}/${CATEGORY}/${PF}"
 PKGCONT="${PKGDBDIR}/CONTENTS"
@@ -341,12 +338,16 @@ econf()
 			eerror "cmake failed"
 		fi
 	else
+		if [ "x${CONFIGURE_SCRIPT}" = "x" ]
+		then
+			CONFIGURE_SCRIPT="configure"
+		fi
 		local ___conf_script=
 		if [ "x${BUILD_IN_SEPARATE_DIR}" = "xyes" ]
 		then
-			___conf_script=../${SOURCES_DIR}/configure
+			___conf_script=../${SOURCES_DIR}/${CONFIGURE_SCRIPT}
 		else
-			___conf_script=./configure
+			___conf_script=./${CONFIGURE_SCRIPT}
 		fi
 		eval echo ${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $* > ${WORKDIR_TEMP}/CONFIGURE
 		${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $*
