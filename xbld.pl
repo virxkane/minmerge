@@ -743,7 +743,7 @@ sub script_and_run_command($$$$)
 	{
 		$ret = system($SHELL,  "--login", "-c", $fname);
 	}
-	#unlink($fname);
+	unlink($fname);
 	return $ret;
 }
 
