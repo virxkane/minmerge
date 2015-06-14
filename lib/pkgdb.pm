@@ -1,4 +1,4 @@
-# Copyright 2014 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -23,6 +23,7 @@ pkgdb - Methods for getting various information about `mingw-portage' packages.
 	my $xbuild = find_xbuild("zlib");
 	$xbuild = find_xbuild(">=dev-libs/gmp-5.1");
 	$xbuild = find_xbuild("=dev-libs/gmp-5.0.*");
+	$xbuild = find_xbuild("=gcc-core-4.9.2-r2");
 
 	my $ixbuild = find_installed_xbuild("zlib");
 	$ixbuild = find_installed_xbuild(">=dev-libs/gmp-5.1");
@@ -160,7 +161,7 @@ sub find_xbuild_private($$)
 	my $category = "";
 	my $conflict = 0;	# if we found this atom in multiple categories.
 	my ($tstr, $len);
-	my ($idx, $pidx);
+	my $idx;
 	my ($dh_p, $dir_p_ent, $ent_p_mode);
 	my ($dh, $dirname, $dir_ent, $ent_mode);
 	my (@candidates, $candidate, $cand_ver_s, %cand_ver, %cand_ver_p, $cmp_res);
@@ -207,15 +208,14 @@ sub find_xbuild_private($$)
 	if ($have_ver)
 	{
 		$idx = index($pname, '-');
-		while ($idx > 0)
+		while ($idx > 0 && $idx < length($pname) - 1 && !(substr($pname, $idx + 1, 1) =~ /\d/o))
 		{
-			$pidx = $idx;
 			$idx = index($pname, '-', $idx + 1);
 		}
-		if ($pidx > 0)
+		if ($idx > 0)
 		{
-			$version = substr($pname, $pidx + 1);
-			$pname = substr($pname, 0, $pidx);
+			$version = substr($pname, $idx + 1);
+			$pname = substr($pname, 0, $idx);
 		}
 		else
 		{
