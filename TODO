@@ -1,3 +1,6 @@
-1. Add metainfo into binary generated packages.
-2. Implement installing from binary packages.
+1.* Add metainfo into binary generated packages.
+2.* Implement installing from binary packages.
 3. Implement 'depclean' mode.
+4. sandbox for Windows.
+
+* Ready.

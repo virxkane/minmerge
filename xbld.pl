@@ -1,12 +1,15 @@
 #!/usr/bin/perl
 
-# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
-# This is a part of mingw-portage project: 
-# http://sourceforge.net/projects/mingwportage/
-# Distributed under the terms of the GNU General Public License v3
+#######################################################################
+#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  This is a part of mingw-portage project:                           #
+#  http://sourceforge.net/projects/mingwportage/                      #
+#  Distributed under the terms of the GNU General Public License v3   #
+#######################################################################
 
 use 5.006;
 use warnings;
+#no warnings qw(once);
 
 use File::Temp qw/tempfile/;
 use File::Basename qw/basename/;
@@ -15,7 +18,7 @@ use File::Path;
 use IPC::Open3;
 use Time::Local;
 use Cwd;
-use POSIX;
+use POSIX qw/S_ISDIR S_ISREG/;
 
 sub script_and_run_command($$$$);
 sub inject_part($$);
@@ -75,9 +78,9 @@ $MSYS_PATH = undef;
 	{
 		print << 'EOF';
 minmerge not configured. You must configure minmerge, for example,
-./minmerge.pl --setmsys c:/msys/1.0" --setminmerge c:/msys/1.0/build/minmerge
+./minmerge.pl --setmsys c:/msys2" --setminmerge c:/msys2/build/minmerge
  or 
-./minmerge.pl --setmsys c:/msys/1.0" --setminmerge $PWD
+./minmerge.pl --setmsys c:/msys2" --setminmerge $PWD
 EOF
 		exit 1;
 	}
@@ -99,6 +102,15 @@ require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
 require "$MINMERGE_PATH/lib/xbuild.pm";
 import xbuild;
+require "$MINMERGE_PATH/lib/mmfeatures.pm";
+import mmfeatures;
+require "$MINMERGE_PATH/lib/infodir.pm";
+import infodir;
+
+# stub for warnings 'once'
+if ($mmfeatures::FEATURE_BUILDPKG) { if ($mmfeatures::FEATURE_BUILDPKG) {;} }
+if ($mmfeatures::FEATURE_SAVELOG) { if ($mmfeatures::FEATURE_SAVELOG) {;} }
+if ($mmfeatures::FEATURE_COLLISION_PROTECT) { if ($mmfeatures::FEATURE_COLLISION_PROTECT) {;} }
 
 shellscript::setshell($SHELL);
 $MINMERGE_PATH = posix2w32path($MINMERGE_PATH);
@@ -114,16 +126,8 @@ my $prefix_w32 = posix2w32path($prefix);
 my $pkgdbbase_w32 = $prefix_w32 . "/var/db/pkg";
 my $portdir = get_minmerge_configval("PORTDIR");
 my $portdir_w32 = posix2w32path($portdir);
-my %features;
-{
-	my $str = get_minmerge_configval("FEATURES");
-	$str =~ s/\s*(.*)\s*/$1/;
-	$str =~ s/\s+/ /;
-	foreach (split(/ /, $str))
-	{
-		$features{$_} = 1;
-	}
-}
+my %features = parse_features(get_minmerge_configval("FEATURES"));
+
 my $distdir = posix2w32path(get_minmerge_configval("DISTDIR"));
 my @distdirs;
 $distdirs[0] = $distdir;
@@ -151,6 +155,7 @@ setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_
 my $xbuild;
 my %xbuild_info;
 my %restrict;
+my $binpkg;
 my $cmds;
 my @commands;
 my $cmd;
@@ -171,8 +176,7 @@ my @A;
 
 $xbuild = shift;
 {
-	my @_st = stat($xbuild);
-	if (!@_st)
+	if (! -f $xbuild)
 	{
 		print "File \"$xbuild\" don't exist!\n";
 		exit 1;
@@ -180,7 +184,14 @@ $xbuild = shift;
 }
 while ($cmd = shift)
 {
-	$cmds .= ' ' . $cmd;
+	if ($cmd =~ m/\.pkg\.tar\.xz$/)
+	{
+		$binpkg = $cmd;
+	}
+	else
+	{
+		$cmds .= ' ' . $cmd;
+	}
 }
 # trim
 $cmds =~ s/^\s*(.*)\s*$/$1/;
@@ -188,7 +199,14 @@ $cmds =~ s/^\s*(.*)\s*$/$1/;
 $cmds =~ s/\s+/ /g;
 @commands = split(/ /, $cmds);
 
+if ($binpkg && ! -f $binpkg)
+{
+	print "Binary package \"$binpkg\" don't exist!\n";
+	exit 1;
+}
+
 #print "script: $xbuild\n";
+#print "binpkg: $binpkg\n";
 #print "commands: @commands\n";
 
 # fill restrict hash
@@ -240,6 +258,11 @@ foreach (@commands)
 	elsif ("prerm" eq $_) { $cmds{prerm} = 1; }
 	elsif ("postrm" eq $_) { $cmds{postrm} = 1; }
 	elsif ("package" eq $_) { $cmds{package} = 1; }
+	elsif ("instbin" eq $_) {
+		$cmds{expandbin} = 1;
+		$cmds{qmerge} = 1;
+		$cmds{postinst} = 1;
+	}
 	else
 	{
 		print "Command not supported: $_\n";
@@ -298,7 +321,6 @@ if ($cmds{fetch})
 	my $found;
 	my $found_all = 1;
 	my %dln_list;
-	#foreach $file (@A)
 	while (($uri, $file) = each(%src_uri_hash))
 	{
 		# TODO: skip repeated files
@@ -424,6 +446,12 @@ if ($cmds{configure})
 		open($fh, "> $workdir_temp_w32/CXXFLAGS") || die "Can't create $workdir_temp_w32/CXXFLAGS!\n";
 		print $fh get_minmerge_configval("CXXFLAGS") . "\n";
 		close($fh);
+		open($fh, "> $workdir_temp_w32/environment") || die "Can't create $workdir_temp_w32/environment!\n";
+		while (my($envkey, $envval) = each(%ENV))
+		{
+			print $fh "$envkey=$envval\n";
+		}
+		close($fh);
 		# run command
 		$ret = script_and_run_command($xbuild, 'configure', 1, $buildlog_w32);
 		die "configure failed!\n" if $ret != 0;
@@ -498,30 +526,19 @@ if ($cmds{install})
 		die "Install failed!\n" if $ret != 0;
 		# create list of installed dirs & files.
 		my @dirlist = dir_list($instdir_w32, '');
-		# write thislist to file
-		my $fh;
-		if (open($fh, "> $workdir_temp_w32/contents"))
-		{
-			foreach (@dirlist)
-			{
-				print $fh "$_\n";
-			}
-			close($fh);
-		}
-		else
-		{
-			die "Can't write contents of package!\n";
-		}
-		# update modtime of each files to current time
-		# later in make_content function this time saved in content list.
-		# And in make_package function files saved also with this time.
-		# This is needed to correctly update package (see merge.pl).
-		touch_to_filelist($instdir_w32, \@dirlist);
 		if (!$restrict{strip})
 		{
 			print " * Strip executables and libraries:\n";
 			strip_binary_list($instdir_w32, \@dirlist);
 		}
+		# remove GNU info dir to exclude collisions.
+		my $infodir = "$instdir_w32/$prefix/share/info/dir";
+		if (-f $infodir)
+		{
+			unlink($infodir) || die "Failed to remove local info directory index file!";
+		}
+		$ret = File::Copy::copy($xbuild, $workdir_temp_w32 . '/' . File::Basename::basename($xbuild));
+		die "xbuild copy failed!\n" if !$ret;
 		close $fh if open($fh, "> $label");
 	}
 	else
@@ -537,8 +554,17 @@ if ($cmds{package})
 	{
 		die "Package not installed yet!\n";
 	}
-	$ret = script_and_run_command($xbuild, 'package', 1, , $buildlog_w32);
+	$ret = script_and_run_command($xbuild, 'package', 1, $buildlog_w32);
 	die "package failed!\n" if $ret != 0;
+}
+if ($cmds{expandbin})
+{
+	my $label = "$workdir_w32/.installed";
+	$ret = script_and_run_command($xbuild, 'expandbin', undef, undef);
+	die "expanding binary package failed!\n" if $ret != 0;
+	# Replace xbuild ref with extracted from binary package.
+	$xbuild = $workdir_temp_w32 . '/' . File::Basename::basename($xbuild);
+	close $fh if open($fh, "> $label");
 }
 if ($cmds{preinst})
 {
@@ -552,31 +578,53 @@ if ($cmds{qmerge})
 	{
 		die "Package not installed yet!\n";
 	}
-	my @dirlist;
-	my $fh;
-	if (open($fh, "< $workdir_temp_w32/contents"))
+
+	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
+	my %ixbuild_info;
+	my $ipkgdbdir;
+	if ($ixbuild)
 	{
-		while (<$fh>)
-		{
-			chomp;
-			push(@dirlist, $_);
-		}
-		close($fh);
+		%ixbuild_info = xbuild_info($ixbuild);
+		$ipkgdbdir = "$pkgdbbase_w32/$ixbuild_info{cat}/$ixbuild_info{pf}";
 	}
-	else
+
+	my @dirlist = dir_list($instdir_w32, '');
+	my @pkg_files;
+	my $f_entry;
+	my $have_info_files;
+	my $_prefix = $prefix;
+	$_prefix = substr($_prefix, 1) if (substr($_prefix, 0, 1) eq '/');
+	foreach (@dirlist)
 	{
-		die "Can't write contents of package!\n";
+		$f_entry = $instdir_w32 . '/' . $_;
+		push(@pkg_files, $_) if -f $f_entry;
+		$have_info_files = 1 if m/^${_prefix}\/share\/info\/.*\.info$/;
 	}
+	if ($features{$mmfeatures::FEATURE_COLLISION_PROTECT})
+	{
+		print " * checking " . scalar(@pkg_files) . " files for package collisions...\n";
+		$ret = pkg_check_collision($prefix, $prefix_w32, $instdir_w32, $ipkgdbdir, \@pkg_files);
+		die "collision check failed!\n" if !$ret;
+	}
+	# update modtime of each file to current time
+	# Later in make_pkg_contents() function this time saved in content list file.
+	# This is needed to correctly update package (see unmerge_package() function).
+	touch_to_filelist($instdir_w32, \@dirlist);
+
 	print " * Merge package to system...\n";
 	$ret = merge_package($prefix, $prefix_w32, $instdir_w32, \@dirlist);
 	die "merge failed!\n" if !$ret;
-	my $ixbuild = find_installed_xbuild("$xbuild_info{cat}/$xbuild_info{pn}");
 	if ($ixbuild)
 	{
-		my %info = xbuild_info($ixbuild);
-		print " * Safely unmerging already-installed instance of $info{cat}/$info{pf}...\n";
-		$ret = unmerge_package($prefix, $prefix_w32, "$pkgdbbase_w32/$info{cat}/$info{pf}", $ixbuild);
-		die "Unmerge $info{cat}/$info{pf} failed!" if !$ret;
+		print " * Safely unmerging already-installed instance of $ixbuild_info{cat}/$ixbuild_info{pf}...\n";
+		$ret = unmerge_package($prefix, $prefix_w32, $ipkgdbdir, $ixbuild);
+		die "Unmerge $ixbuild_info{cat}/$ixbuild_info{pf} failed!" if !$ret;
+	}
+	if ($have_info_files)
+	{
+		# regenerate info directory index file.
+		print "Regenerating GNU info directory index...\n";
+		regenerate_infodir($SHELL, "$prefix/share/info/");
 	}
 	File::Path::mkpath($pkgdbdir_w32);
 	$ret = File::Copy::copy("$workdir_temp_w32/CHOST", "$pkgdbdir_w32/CHOST");
@@ -584,12 +632,13 @@ if ($cmds{qmerge})
 	$ret = File::Copy::copy("$workdir_temp_w32/CFLAGS", "$pkgdbdir_w32/CFLAGS") if ($ret);
 	$ret = File::Copy::copy("$workdir_temp_w32/CXXFLAGS", "$pkgdbdir_w32/CXXFLAGS") if ($ret);
 	$ret = File::Copy::copy("$workdir_temp_w32/BUILD_TIME", "$pkgdbdir_w32/BUILD_TIME") if ($ret);
+	$ret = File::Copy::copy("$workdir_temp_w32/environment", "$pkgdbdir_w32/environment") if ($ret);
 	if (-f "$workdir_temp_w32/CONFIGURE")
 	{
 		$ret = File::Copy::copy("$workdir_temp_w32/CONFIGURE", "$pkgdbdir_w32/CONFIGURE") if ($ret);
 	}
 	my @_stat = stat("$workdir_temp_w32/build.log");
-	if ($ret && $features{savelog} && @_stat && $_stat[7] != 0)
+	if ($ret && $features{$mmfeatures::FEATURE_SAVELOG} && @_stat && $_stat[7] != 0)
 	{
 		$ret = File::Copy::copy("$workdir_temp_w32/build.log", "$pkgdbdir_w32/build.log");
 		if ($ret)
@@ -601,8 +650,8 @@ if ($cmds{qmerge})
 			}
 		}
 	}
-	# TODO: save environment into file
-	$ret = File::Copy::copy($xbuild, $pkgdbdir_w32 . '/' . File::Basename::basename($xbuild)) if $ret;
+	$ret = File::Copy::copy($workdir_temp_w32 . '/' . File::Basename::basename($xbuild),
+						$pkgdbdir_w32 . '/' . File::Basename::basename($xbuild)) if $ret;
 	if ($ret)
 	{
 		make_pkg_contents($prefix, "$pkgdbdir_w32/CONTENTS", $instdir_w32, \@dirlist);
@@ -643,10 +692,11 @@ if ($cmds{clean})
 }
 
 # End of main.
+1;
 
 
 
-# generate bash script for xbuild and one command.
+# generate and run bash script for xbuild and one specified command.
 sub script_and_run_command($$$$)
 {
 	my ($xbuild, $command, $use_source, $logfile) = @_;
@@ -1024,7 +1074,7 @@ sub fetch_file($$;$)
 	return $ret == 0;
 }
 
-# read directory and return list with its contents
+# read directory recursively and return list with its contents
 sub dir_list($$)
 {
 	my ($dir, $prefix) = @_;

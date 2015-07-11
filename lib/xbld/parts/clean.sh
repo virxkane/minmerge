@@ -1,6 +1,6 @@
 if [ -d "${WORKDIR}" ]
 then
-	ebegin "Cleaning \"${WORKDIR}\" ... "	
+	ebegin "Cleaning \"${WORKDIR}\" ... "
 	cd "${TMPDIR}"
 	rm -rf "${WORKDIR}"
 	if [ $? -eq 0 ]

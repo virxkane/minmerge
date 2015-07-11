@@ -1,17 +1,20 @@
 #!/usr/bin/perl
 
-# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
-# This is a part of mingw-portage project: 
-# http://sourceforge.net/projects/mingwportage/
-# Distributed under the terms of the GNU General Public License v3
+#######################################################################
+#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  This is a part of mingw-portage project:                           #
+#  http://sourceforge.net/projects/mingwportage/                      #
+#  Distributed under the terms of the GNU General Public License v3   #
+#######################################################################
 
 use 5.006;
 use warnings;
+#no warnings qw(once);
 
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.1.5";
+use constant MM_VERSION => "0.2.0";
 
 # forward function declarations
 sub calc_deps($;$$$);
@@ -27,6 +30,7 @@ my $s_oneshot=0;
 my $s_deep=0;
 my $s_nodeps=0;
 my $s_emptytree=0;
+my $s_buildpkg=0;
 my $s_usepkg=0;
 my $s_fetchonly=0;
 my $s_verbose=0;
@@ -50,6 +54,7 @@ Getopt::Long::GetOptions(
 			'D|deep' => \$s_deep,
 			'O|nodeps' => \$s_nodeps,
 			'e|emptytree' => \$s_emptytree,
+			'b|buildpkg' => \$s_buildpkg,
 			'k|usepkg' => \$s_usepkg,
 			'f|fetchonly' => \$s_fetchonly,
 			'v|verbose' => \$s_verbose,
@@ -85,6 +90,8 @@ options:
    --nodeps     Merges specified packages without merging any dependencies.
    -e
    --emptytree  Reinstalls target atoms and their entire deep dependency tree.
+   -b
+   --buildpkg   Build binary packages for all processed xbuilds. If ommited also checked 'buildpkg' feature.
    -k
    --usepkg     Install package from existing binary packages instead of building from sources.
    -f
@@ -167,9 +174,9 @@ if (!$MSYS_PATH || !$MINMERGE_PATH)
 {
 	print << 'EOF';
 minmerge not configured. You must configure minmerge, for example,
-./minmerge.pl --setmsys c:/msys/1.0 --setminmerge c:/msys/1.0/build/minmerge
+./minmerge.pl --setmsys c:/msys2 --setminmerge c:/msys2/build/minmerge
  or 
-./minmerge.pl --setmsys c:/msys/1.0 --setminmerge $PWD
+./minmerge.pl --setmsys c:/msys2 --setminmerge $PWD
 EOF
 	exit 1;
 }
@@ -190,10 +197,17 @@ require "$MINMERGE_PATH/lib/pkgdb.pm";
 import pkgdb;
 require "$MINMERGE_PATH/lib/xbuild.pm";
 import xbuild;
-	
+require "$MINMERGE_PATH/lib/mmfeatures.pm";
+import mmfeatures;
+
 shellscript::setshell($SHELL);
 $MINMERGE_PATH = posix2w32path($MINMERGE_PATH);
 xbuild::set_minmerge($MINMERGE_PATH);
+
+# stub for warnings 'once'
+if ($mmfeatures::FEATURE_BUILDPKG) { if ($mmfeatures::FEATURE_BUILDPKG) {;} }
+if ($mmfeatures::FEATURE_SAVELOG) { if ($mmfeatures::FEATURE_SAVELOG) {;} }
+if ($mmfeatures::FEATURE_COLLISION_PROTECT) { if ($mmfeatures::FEATURE_COLLISION_PROTECT) {;} }
 
 # main
 
@@ -201,7 +215,7 @@ my $prefix;
 my $prefix_w32;
 my $portdir;
 my $portdir_w32;
-my $pkgdbbase;
+my $pkgdbbase_w32;
 my %features;
 
 my @pkg_atoms;
@@ -212,22 +226,16 @@ my %xbuild_info;
 my $xbuild_cmds;
 my @all_xbuilds;	# build scripts for specified atoms & dependencies
 my $all_dep_xbuilds;
+my %all_binpkg;		# binary packages: key - xbuild path, value binary package path.
 
 $prefix = get_minmerge_configval("PREFIX");
 $prefix_w32 = posix2w32path($prefix);
-$pkgdbbase = $prefix_w32 . "/var/db/pkg";
+$pkgdbbase_w32 = $prefix_w32 . "/var/db/pkg";
 $portdir = get_minmerge_configval("PORTDIR");
 $portdir_w32 = posix2w32path($portdir);
-# parse features
-{
-	my $str = get_minmerge_configval("FEATURES");
-	$str =~ s/\s*(.*)\s*/$1/;
-	$str =~ s/\s+/ /;
-	foreach (split(/ /, $str))
-	{
-		$features{$_} = 1;
-	}
-}
+$pkgdir = get_minmerge_configval("PKGDIR");
+$pkgdir_w32 = posix2w32path($pkgdir);
+%features = parse_features(get_minmerge_configval("FEATURES"));
 
 if ($s_info)
 {
@@ -247,14 +255,10 @@ if ($s_info)
 		next if (!$distdir[$i - 1]);
 		$distdir_w32[$i - 1] = posix2w32path($distdir[$i - 1]);
 	}
-	my $pkgdir = get_minmerge_configval("PKGDIR");
-	my $pkgdir_w32 = posix2w32path($pkgdir);
 	my $tmpdir = get_minmerge_configval("TMPDIR");
 	my $tmpdir_w32 = posix2w32path($tmpdir);
 	my $perl_path = get_minmerge_configval("PERL_PATH");
 	my $perl_path_w32 = posix2w32path($perl_path);
-	my $python_path = get_minmerge_configval("PYTHON_PATH");
-	my $python_path_w32 = posix2w32path($python_path);
 
 	print "version: " . MM_VERSION . "\n";
 	print "minmerge path: $MINMERGE_PATH\n";
@@ -275,33 +279,33 @@ if ($s_info)
 	}
 	print "PKGDIR: $pkgdir => $pkgdir_w32\n";
 	print "TMPDIR: $tmpdir => $tmpdir_w32\n";
-	print "FEATURES: ";
+	print "FEATURES:";
 	while (my ($_key, $_val) = each %features)
 	{
-		print $_key . " " if $_val;
+		print " " . $_key if $_val;
 	}
 	print "\n";
 	print "PERL_PATH: $perl_path => $perl_path_w32\n";
-	print "PYTHON_PATH: $python_path => $python_path_w32\n";
 	exit 0;
 }
 
 @pkg_atoms = @ARGV;
 
-setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_w32, metadata => $pkgdbbase});
+setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_w32, pkgdir => $pkgdir_w32, metadata => $pkgdbbase_w32});
 
 if ($s_depclean)
 {
 	print "Sorry, depclean mode not implemented yet!";
 	exit 1;
 }
-if ($s_usepkg)
+
+if ($s_usepkg && $s_buildpkg)
 {
-	print "Sorry, installing from binary packages not implemented yet!";
+	print "You must specify only one of '--usepkg' & '--buildpkg'!\n";
 	exit 1;
 }
 
-if ($s_unmerge != 0)
+if ($s_unmerge)
 {
 	$xbuild_cmds = "unmerge";
 }
@@ -311,8 +315,15 @@ elsif ($s_fetchonly)
 }
 else
 {
-	$xbuild_cmds = "merge clean";
-	$xbuild_cmds .= " package" if $features{buildpkg};
+	if ($s_usepkg)
+	{
+		$xbuild_cmds = "clean instbin";
+	}
+	else
+	{
+		$xbuild_cmds = "merge clean";
+		$xbuild_cmds .= " package" if ($features{$mmfeatures::FEATURE_BUILDPKG} || $s_buildpkg);
+	}
 }
 
 # replace special names 'system' & 'world' to appropriate atoms set
@@ -447,12 +458,31 @@ if ($s_update && !$s_emptytree)
 	@all_xbuilds = @tmplist;
 }
 
+# Find binary packages if necessary
+if ($s_usepkg && !$s_unmerge)
+{
+	my $binpkg_path;
+	foreach $xbuild (@all_xbuilds)
+	{
+		$binpkg_path = find_binpkg($xbuild);
+		$all_binpkg{$xbuild} = $binpkg_path if $binpkg_path;
+	}
+}
+
 # Show information about affected packages
 if (($s_pretend || $s_verbose) && !$s_unmerge)
 {
 	foreach $xbuild (@all_xbuilds)
 	{
 		$pkg_stat = '[';
+		if (defined($all_binpkg{$xbuild}))
+		{
+			$pkg_stat .= 'k';
+		}
+		else
+		{
+			$pkg_stat .= ' ';
+		}
 		# add label for world status of package
 		if (is_in_world($xbuild))
 		{
@@ -503,7 +533,7 @@ if (($s_pretend || $s_verbose) && !$s_unmerge)
 exit 0 if $s_pretend;
 
 # call $XBUILD with arguments
-print "\n";
+print "\n" if (!$s_unmerge);
 my $current = 0;
 foreach $xbuild (@all_xbuilds)
 {
@@ -511,9 +541,23 @@ foreach $xbuild (@all_xbuilds)
 	%xbuild_info = xbuild_info($xbuild);
 	if (!$s_unmerge)
 	{
-		print ">>> Emerging ($current of " . ($#all_xbuilds + 1) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+		if (defined($all_binpkg{$xbuild}))
+		{
+			print ">>> Emerging binary ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+		}
+		else
+		{
+			print ">>> Emerging ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+		}
 	}
-	system($^X, $XBUILD, $xbuild, $xbuild_cmds);
+	if (defined($all_binpkg{$xbuild}))
+	{
+		system($^X, $XBUILD, $xbuild, $all_binpkg{$xbuild}, $xbuild_cmds);
+	}
+	else
+	{
+		system($^X, $XBUILD, $xbuild, $xbuild_cmds);
+	}
 	if ($?)
 	{
 		print "Failed at $xbuild\n";
@@ -555,6 +599,7 @@ foreach $xbuild (@all_xbuilds)
 	}
 }
 
+1;
 
 
 

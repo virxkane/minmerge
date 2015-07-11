@@ -1,7 +1,9 @@
-# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
-# This is a part of mingw-portage project: 
-# http://sourceforge.net/projects/mingwportage/
-# Distributed under the terms of the GNU General Public License v3
+#######################################################################
+#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  This is a part of mingw-portage project:                           #
+#  http://sourceforge.net/projects/mingwportage/                      #
+#  Distributed under the terms of the GNU General Public License v3   #
+#######################################################################
 
 =head1 NAME
 
@@ -52,7 +54,7 @@ BEGIN
 	require Exporter;
 
 	our @ISA = qw(Exporter);
-	our @EXPORT = qw(setportage_info find_xbuild find_installed_xbuild xbuild_info
+	our @EXPORT = qw(setportage_info find_xbuild find_installed_xbuild xbuild_info find_binpkg
 					add_to_world remove_from_world is_in_world
 					get_system_set get_world_set);
 }
@@ -65,6 +67,7 @@ X<setportage_info>
 Set various portage parameters. Now support these options as hash keys:
 bldext - extension of  build script,
 portdir - portage directory (where you place build scripts),
+pkgdir - binary packages directory  (by default it's <portdir>/packages),
 prefix - mingw prefix (where you place all mingw packages),
 metadata - directory with installed packages metadata (usualy it's <prefix>/var/db/pkg)
  
@@ -72,13 +75,14 @@ metadata - directory with installed packages metadata (usualy it's <prefix>/var/
 
 or
 
-  $portage_info{portdir} = "c:/msys/1.0/build/portage";
+  $portdir = ...;
+  $portage_info{portdir} = $portdir;
   $portage_info{prefix} = "c:/mingw";
   setportage_info(\%portage_info);
 
 =cut
 
-my %portage_info = (bldext => 'xbuild', prefix => 'c:/mingw', portdir => '/x/', metadata => 'c:/mingw/var/db/pkg');
+my %portage_info = (bldext => 'xbuild', prefix => 'c:/mingw', portdir => '/x/', pkgdir => '/x/x/', metadata => 'c:/mingw/var/db/pkg');
 
 # system packages
 my @system_set = ('meta-virtual/system-headers', 'meta-virtual/system-libc',
@@ -92,6 +96,14 @@ sub setportage_info($)
 	my %info = %$ref;
 	$portage_info{bldext} = $info{bldext} if defined($info{bldext});
 	$portage_info{portdir} = $info{portdir} if defined($info{portdir});
+	if (defined($info{pkgdir}))
+	{
+		$portage_info{pkgdir} = $info{pkgdir};
+	}
+	elsif (defined($info{portdir}))
+	{
+		$portage_info{pkgdir} = $info{portdir} . '/packages';
+	}
 	if (defined($info{prefix}))
 	{
 		$portage_info{prefix} = $info{prefix};
@@ -435,7 +447,7 @@ sub find_xbuild_private($$)
 =item C<xbuild_info>
 X<xbuild_info> 
 
-Return hash with information abount package by build script.
+Return hash with information about package by build script.
 
   %pkg_info = xbuild_info("/build/portage/media-libs/libogg/libogg-1.3.0.xbuild");
 
@@ -503,6 +515,34 @@ sub xbuild_info($)
 
 	return %res;
 }
+
+
+=item C<find_binpkg>
+X<find_binpkg>
+
+Find binary package.
+
+  my $xbuild = <...>;		# path to xbuild script.
+  my $binpkg = find_binpkg($xbuild);
+
+Return full path to binary package if exist for specified xbuild script.
+Arguments:
+0: path to xbuild script.
+
+=cut
+
+sub find_binpkg($)
+{
+	my ($xbuild) = @_;
+	my $res;
+	my %info = xbuild_info($xbuild);
+	return $res if (!%info);
+	my $pkgdir = $portage_info{pkgdir};
+	my $pkg_name = $info{pf} . ".pkg.tar.xz";
+	$res = "${pkgdir}/${pkg_name}" if (-f "${pkgdir}/${pkg_name}");
+	return $res;
+}
+
 
 =item C<add_to_world>
 X<add_to_world> 

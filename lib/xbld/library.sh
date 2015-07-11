@@ -21,11 +21,6 @@ export CHOST
 export CFLAGS
 export CXXFLAGS
 
-PKGDBBASE="${PREFIX}/var/db/pkg"
-PKGDBDIR="${PKGDBBASE}/${CATEGORY}/${PF}"
-PKGCONT="${PKGDBDIR}/CONTENTS"
-TMPCONT="${WORKDIR_TEMP}/contents"
-PKG="${PKGDIR}/${PF}.bin.tar.xz"
 DISTDIRS="${DISTDIR} ${DISTDIR2} ${DISTDIR3} ${DISTDIR4} ${DISTDIR5}
 			${DISTDIR6} ${DISTDIR7} ${DISTDIR8} ${DISTDIR9}"
 
@@ -392,15 +387,4 @@ emake_install()
 	else
 		eerror "make install failed!"
 	fi
-}
-
-make_package()
-{
-	einfo "Make package archive..."
-	local pwd1=`cd`
-	cd "${INSTDIR}"
-	tar -cvJpf "${PKG}" .
-	ret=$?
-	cd "$pwd1"
-	return $ret
 }
