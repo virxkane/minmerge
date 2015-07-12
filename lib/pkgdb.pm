@@ -361,10 +361,10 @@ sub find_xbuild_private($$)
 									push(@candidates, $dirname . '/' . $dir_ent . '/' . $dir_ent . ".$xbuild_ext");
 								}
 							}
-							else
-							{
-								print "$dir_ent have invalid version number ($cand_ver_s), skipped!\n";
-							}
+							#else
+							#{
+							#	print "$dir_ent have invalid version number ($cand_ver_s), skipped (1)!\n";
+							#}
 						}
 					}
 				}
@@ -398,10 +398,10 @@ sub find_xbuild_private($$)
 										push(@candidates, $dirname . '/' . $dir_ent);
 									}
 								}
-								else
-								{
-									print "$dir_ent have invalid version number, skipped!\n";
-								}
+								#else
+								#{
+								#	print "$dir_ent have invalid version number, skipped (2)!\n";
+								#}
 							}
 						}
 					}
