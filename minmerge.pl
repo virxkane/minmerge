@@ -305,27 +305,6 @@ if ($s_usepkg && $s_buildpkg)
 	exit 1;
 }
 
-if ($s_unmerge)
-{
-	$xbuild_cmds = "unmerge";
-}
-elsif ($s_fetchonly)
-{
-	$xbuild_cmds = "fetch";
-}
-else
-{
-	if ($s_usepkg)
-	{
-		$xbuild_cmds = "clean instbin";
-	}
-	else
-	{
-		$xbuild_cmds = "merge clean";
-		$xbuild_cmds .= " package" if ($features{$mmfeatures::FEATURE_BUILDPKG} || $s_buildpkg);
-	}
-}
-
 # replace special names 'system' & 'world' to appropriate atoms set
 my @set_list;
 my $have_set = 0;
@@ -539,15 +518,29 @@ foreach $xbuild (@all_xbuilds)
 {
 	$current++;
 	%xbuild_info = xbuild_info($xbuild);
-	if (!$s_unmerge)
+	if ($s_unmerge)
 	{
-		if (defined($all_binpkg{$xbuild}))
+		$xbuild_cmds = "unmerge";
+	}
+	else
+	{
+		if ($s_fetchonly)
 		{
-			print ">>> Emerging binary ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+			$xbuild_cmds = "fetch";
 		}
 		else
 		{
-			print ">>> Emerging ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+			if (defined($all_binpkg{$xbuild}))
+			{
+				print ">>> Emerging binary ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+				$xbuild_cmds = "clean instbin";
+			}
+			else
+			{
+				print ">>> Emerging ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+				$xbuild_cmds = "merge clean";
+				$xbuild_cmds .= " package" if ($features{$mmfeatures::FEATURE_BUILDPKG} || $s_buildpkg);
+			}
 		}
 	}
 	if (defined($all_binpkg{$xbuild}))
