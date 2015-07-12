@@ -20,11 +20,13 @@ fi
 cd "${WORKDIR}/image" || eerror "Can't chdir to \"${WORKDIR}/image\""
 
 # unpack first stream with package content
-xz -dk --single-stream --stdout "${PKG}" | tar -xp || eerror "Extract failed!"
+# --single-stream key ommited in xz 5.0.3
+xz -dk --stdout "${PKG}" | tar -xp || eerror "Extract failed!"
 
 # extract metadata
 cd "${WORKDIR_TEMP}" || eerror "Can't chdir to \"${WORKDIR_TEMP}\""
-offset=`xz -lv --robot "${PKG}" | grep '^stream\s\+2\s\+1.*$' | cut -f 4`
+# '\s' work incorrect in grep 2.5 using '[[:space:]]'
+offset=`xz -lv --robot "${PKG}" | grep -e '^stream[[:space:]]\+2[[:space:]]\+1[[:space:]]\+[[:digit:]]\+[[:space:]]\+.*$' | cut -f 4`
 offset=`echo ${offset} | grep '[0-9]\+'`
 if [ "x${offset}" = "x" ]
 then
