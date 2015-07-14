@@ -529,7 +529,7 @@ sub unmerge_package($$$$;$)
 	{
 		my_chomp::my_chomp $line;
 		next if !$line;
-		($type, $fname, $hash, $modtime) = split(/\s+/, $line, 4);
+		($type, $fname, $hash, $modtime) = split(/\t+/, $line, 4);
 		$tmp = substr($fname, 0, $prefix_len);
 		if ($tmp ne $prefix)
 		{
