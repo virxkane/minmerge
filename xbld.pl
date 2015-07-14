@@ -674,7 +674,7 @@ if ($cmds{prerm})
 if ($cmds{unmerge})
 {
 	print " * Unmerging package $xbuild_info{cat}/$xbuild_info{pf}...\n";
-	$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir_w32, $xbuild);
+	$ret = unmerge_package($prefix, $prefix_w32, $pkgdbdir_w32, $xbuild, 1);
 	die "Unmerge $xbuild_info{cat}/$xbuild_info{pf} failed!" if !$ret;	
 }
 if ($cmds{postrm})

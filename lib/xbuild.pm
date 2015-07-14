@@ -256,6 +256,7 @@ sub pkg_check_collision($$$$$)
 	my $refname;
 	my $targ_fname;
 	my $found;
+	my @_st;
 
 	if (-f $pkg_prevcont)
 	{
@@ -271,7 +272,7 @@ sub pkg_check_collision($$$$$)
 		{
 			my_chomp::my_chomp $line;
 			next if !$line;
-			($type, $fname, $hash, $modtime) = split(/\s+/, $line, 4);
+			($type, $fname, $hash, $modtime) = split(/\t+/, $line, 4);
 			next if $type ne 'fil';
 			$tmp = substr($fname, 0, $prefix_len);
 			if ($tmp ne $prefix)
@@ -305,7 +306,8 @@ sub pkg_check_collision($$$$$)
 		}
 		$targ_fname = $prefix_w32 . $line;
 		#print "$refname => $targ_fname\n";
-		if (-f "$targ_fname")
+		@_st = stat("$targ_fname");
+		if (@_st)
 		{
 			$found = 0;
 			foreach (@prevcont)
