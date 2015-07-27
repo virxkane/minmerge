@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Copyright 2014 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -37,11 +37,15 @@ my $patom = "<sys-libs/zlib-1.2.7";
 my $bld = find_xbuild($patom);
 print "patom: $patom => $bld\n";
 
-my $patom = "sys-devel/gcc-core-c++";
+my $patom = "sys-devel/gcc-core";
 my $bld = find_xbuild($patom);
 print "patom: $patom => $bld\n";
 
 my $patom = "dev-util/cmake";
+my $bld = find_xbuild($patom);
+print "patom: $patom => $bld\n";
+
+my $patom = "=media-libs/gegl-0.2.*";
 my $bld = find_xbuild($patom);
 print "patom: $patom => $bld\n";
 
@@ -63,4 +67,3 @@ print "patom: $patom => $bld\n";
 my $patom = "dev-util/cmake";
 my $bld = find_installed_xbuild($patom);
 print "patom: $patom => $bld\n";
-

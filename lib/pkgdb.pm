@@ -385,7 +385,7 @@ sub find_xbuild_private($$)
 								%cand_ver = pkg_version::parse_version($cand_ver_s);
 								if (defined($cand_ver{major}))
 								{
-									#print "dir_ent = $dir_ent, mode = $ent_mode, version = $cand_ver_s\n";
+									#print "dir_ent=$dir_ent, mode=$ent_mode, version=$cand_ver_s, cond=\'$cond\', req_version=$version\n";
 									if ($version)
 									{
 										if (pkg_version::version_test($cond, $version, \%cand_ver))

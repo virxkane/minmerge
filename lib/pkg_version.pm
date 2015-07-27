@@ -530,15 +530,20 @@ sub pattern_version_compare($$)
 			return -1;
 		}
 	}
-	if ($v1{subrel} > $v2{subrel})
+	$vv1 = $v1{subrel};
+	$vv2 = $v2{subrel};
+	if (defined($vv1) && $vv1 ne '*')
 	{
-		#print "subrel1 bigger\n";
-		return 1;
-	}
-	elsif ($v1{subrel} < $v2{subrel})
-	{
-		#print "subrel2 bigger\n";
-		return -1;
+		if ($vv1 > $vv2)
+		{
+			#print "subrel1 bigger\n";
+			return 1;
+		}
+		elsif ($vv1 < $vv2)
+		{
+			#print "subrel2 bigger\n";
+			return -1;
+		}
 	}
 	return 0;
 }
