@@ -327,7 +327,9 @@ econf()
 			# fix native path of install prefix back to MSYS path
 			cat CMakeCache.txt | sed -e "s/^CMAKE_INSTALL_PREFIX:PATH=.*$/CMAKE_INSTALL_PREFIX:PATH=\\${PREFIX}/" > CMakeCache.txt.new
 			mv -f CMakeCache.txt.new CMakeCache.txt
-			cat cmake_install.cmake | sed -e "s/^\ *SET(CMAKE_INSTALL_PREFIX\ .*)\ *$/  SET(CMAKE_INSTALL_PREFIX\ \\${PREFIX})/" > cmake_install.cmake.new
+			cat CMakeCache.txt | sed -e "s/^CMAKE_INSTALL_PREFIX:INTERNAL=.*$/CMAKE_INSTALL_PREFIX:INTERNAL=\\${PREFIX}/" > CMakeCache.txt.new
+			mv -f CMakeCache.txt.new CMakeCache.txt
+			cat cmake_install.cmake | sed -e "s/^[\ \t]*SET(CMAKE_INSTALL_PREFIX\ .*)\ *$/  SET(CMAKE_INSTALL_PREFIX\ \\${PREFIX})/" > cmake_install.cmake.new
 			mv -f cmake_install.cmake.new cmake_install.cmake
 		else
 			eerror "cmake failed"
