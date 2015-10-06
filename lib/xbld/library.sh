@@ -297,7 +297,7 @@ eautoreconf()
 		test $? -eq 0 && eend "ok" || eerror "failed"
 	fi
 
-	if [ -f Makefile.am ]
+	if [ -f Makefile.am -o -f GNUmakefile.am ]
 	then
 		ebegin "Running automake --add-missing --copy --foreign... "
 		automake --add-missing --copy --foreign >> ${WORKDIR_TEMP}/autogen.log 2>&1
