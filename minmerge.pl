@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #######################################################################
-#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2016 Chernov A.A. <valexlin@gmail.com>              #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #
@@ -14,7 +14,7 @@ use warnings;
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.2.3.1";
+use constant MM_VERSION => "0.2.4";
 
 # forward function declarations
 sub calc_deps($;$$$);

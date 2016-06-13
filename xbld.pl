@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #######################################################################
-#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2016 Chernov A.A. <valexlin@gmail.com>              #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #
@@ -150,6 +150,10 @@ my @source_mirrors;
 my $tmpdir = get_minmerge_configval("TMPDIR");
 my $tmpdir_w32 = posix2w32path($tmpdir);
 setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_w32, metadata => $pkgdbbase_w32});
+
+# setup openssl for wget
+$ENV{OPENSSL_CONF}=$prefix_w32 . "/etc/ssl/openssl.cnf";
+$ENV{SSL_CERT_DIR}=$prefix_w32 . "/etc/ssl/certs";
 
 # main
 my $xbuild;
