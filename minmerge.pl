@@ -14,7 +14,7 @@ use warnings;
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.2.4";
+use constant MM_VERSION => "0.2.5";
 
 # forward function declarations
 sub calc_deps($;$$$);
@@ -106,7 +106,7 @@ $MINMERGE_PATH = undef;
 $MSYS_PATH = undef;
 
 # Read minmerge & msys path from config.
-my $home = $ENV{'HOME'};					# in msys envoronment
+my $home = $ENV{'HOME'};				# in msys environment
 $home = $ENV{'APPDATA'} if !$home;		# in Windows cmd.exe
 my $fh;
 my $cfg_path = "$home/minmerge.cfg";
@@ -199,10 +199,13 @@ require "$MINMERGE_PATH/lib/xbuild.pm";
 import xbuild;
 require "$MINMERGE_PATH/lib/mmfeatures.pm";
 import mmfeatures;
+require "$MINMERGE_PATH/lib/con_title.pm";
+import con_title;
 
 shellscript::setshell($SHELL);
 $MINMERGE_PATH = posix2w32path($MINMERGE_PATH);
 xbuild::set_minmerge($MINMERGE_PATH);
+con_settitle("minmerge");
 
 # stub for warnings 'once'
 if ($mmfeatures::FEATURE_BUILDPKG) { if ($mmfeatures::FEATURE_BUILDPKG) {;} }
@@ -374,6 +377,7 @@ foreach $pkg_atom (@pkg_atoms)
 if (!$s_nodeps and !$s_unmerge)
 {
 	#  calc dependencies
+	print "Calculating dependencies... ";
 	my @dep_xbuilds;
 	my @all_dep_xbuilds;
 	foreach $xbuild (@xbuilds)
@@ -382,9 +386,15 @@ if (!$s_nodeps and !$s_unmerge)
 		push(@all_dep_xbuilds, @dep_xbuilds) if @dep_xbuilds;
 	}
 	push(@all_xbuilds, @all_dep_xbuilds) if @all_dep_xbuilds;
+	print " done.\n";
 }
 push(@all_xbuilds, @xbuilds);
-@all_xbuilds = remove_duplicates(@all_xbuilds);
+if (scalar(@all_xbuilds) > 1)
+{
+	print "Optimizing dependencies... ";
+	@all_xbuilds = remove_duplicates(@all_xbuilds);
+	print " done.";
+}
 check_conflicted_deps(@all_xbuilds);
 
 my $pkg_stat;
@@ -533,11 +543,13 @@ foreach $xbuild (@all_xbuilds)
 			if (defined($all_binpkg{$xbuild}))
 			{
 				print ">>> Emerging binary ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+				con_settitle("minmerge: ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}  (binary)");
 				$xbuild_cmds = "clean instbin";
 			}
 			else
 			{
 				print ">>> Emerging ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}\n";
+				con_settitle("minmerge: ($current of " . scalar(@all_xbuilds) .") $xbuild_info{cat}/$xbuild_info{pf}");
 				$xbuild_cmds = "merge clean";
 				$xbuild_cmds .= " package" if ($features{$mmfeatures::FEATURE_BUILDPKG} || $s_buildpkg);
 			}
