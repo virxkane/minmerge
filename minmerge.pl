@@ -391,9 +391,7 @@ if (!$s_nodeps and !$s_unmerge)
 push(@all_xbuilds, @xbuilds);
 if (scalar(@all_xbuilds) > 1)
 {
-	print "Optimizing dependencies... ";
 	@all_xbuilds = remove_duplicates(@all_xbuilds);
-	print " done.";
 }
 check_conflicted_deps(@all_xbuilds);
 
