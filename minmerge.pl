@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #######################################################################
-#  Copyright 2014-2016 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2017 Chernov A.A. <valexlin@gmail.com>              #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #

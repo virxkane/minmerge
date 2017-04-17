@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2010-2015 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2010-2017 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -346,8 +346,34 @@ econf()
 		else
 			___conf_script=./${CONFIGURE_SCRIPT}
 		fi
-		eval echo ${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $* > ${WORKDIR_TEMP}/CONFIGURE
-		${___conf_script} --prefix=${PREFIX} --build=${CBUILD} --host=${CHOST} $*
+		# filter some predefined arguments
+		local _args=
+		local _prefix=${PREFIX}
+		local _cbuild=${CBUILD}
+		local _chost=${CHOST}
+		while [ -n "$1" ]
+		do
+			if echo $1 | grep --regexp='^--prefix=.\+$' > /dev/null
+			then
+				_prefix=`echo $1 | sed -e 's/^--prefix=\(.*\)$/\1/'`
+			elif echo $1 | grep --regexp='^--build=.\+$' > /dev/null
+			then
+				_cbuild=`echo $1 | sed -e 's/^--build=\(.*\)$/\1/'`
+			elif echo $1 | grep --regexp='^--host=.\+$' > /dev/null
+			then
+				_chost=`echo $1 | sed -e 's/^--host=\(.*\)$/\1/'`
+			else
+				_args="${_args} $1"
+			fi
+			shift
+		done
+		_args="--prefix=${_prefix} --build=${_cbuild} --host=${_chost} ${_args}"
+		unset -v _prefix
+		unset -v _cbuild
+		unset -v _chost
+		eval echo ${___conf_script} ${_args} > ${WORKDIR_TEMP}/CONFIGURE
+		${___conf_script} ${_args}
+		unset -v _args
 		if [ $? -eq 0 ]
 		then
 			einfo "configure successfull"
