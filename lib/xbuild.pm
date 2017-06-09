@@ -1,4 +1,4 @@
-# Copyright 2010-2015 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2010-2017 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -216,14 +216,41 @@ sub get_full_xbuild_vars(@)
 	return @res;
 }
 
+my %_depends_cache = {};
+my %_rdepends_cache = {};
+
 sub get_depends($)
 {
-	return get_xbuild_vars($_[0], 'DEPEND', 'RDEPEND');
+	my ($xbuild) = @_;
+	my @depends;
+	if (exists($_depends_cache{$xbuild}))
+	{
+		my $_t = $_depends_cache{$xbuild};
+		@depends = @$_t;
+	}
+	else
+	{
+		@depends = get_xbuild_vars($xbuild, 'DEPEND', 'RDEPEND');
+		$_depends_cache{$xbuild} = \@depends;
+	}
+	return @depends;
 }
 
 sub get_rdepends($)
 {
-	return get_xbuild_vars($_[0], 'RDEPEND');
+	my ($xbuild) = @_;
+	my @rdepends;
+	if (exists($_rdepends_cache{$xbuild}))
+	{
+		my $_t = $_rdepends_cache{$xbuild};
+		@rdepends = @$_t;
+	}
+	else
+	{
+		@rdepends = get_xbuild_vars($xbuild, 'RDEPEND');
+		$_rdepends_cache{$xbuild} = \@rdepends;
+	}
+	return @rdepends;
 }
 
 

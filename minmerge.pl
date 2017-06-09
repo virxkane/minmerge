@@ -14,7 +14,7 @@ use warnings;
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.2.5";
+use constant MM_VERSION => "0.2.6";
 
 # forward function declarations
 sub calc_deps($;$$$);
@@ -631,8 +631,17 @@ sub calc_deps_private($$$$)
 	my @dep_dep_xbuilds;
 	my (%info1, %info2);
 
-	push(@_xbuilds_stack, $xbuild);
 	@dep_atoms = get_depends($xbuild);
+	if (scalar(@dep_atoms) == 0)
+	{
+		return @all_dep_xbuilds;
+	}
+	if (scalar(@dep_atoms) == 1 && !$dep_atoms[0])
+	{
+		return @all_dep_xbuilds;
+	}
+
+	push(@_xbuilds_stack, $xbuild);
 
 	# special value '||' interprets as exclusively OR for left & right atoms.
 	my @tmp_deps;
@@ -679,7 +688,6 @@ sub calc_deps_private($$$$)
 			$left_atom = $right_atom;
 			push(@tmp_deps, $right_atom);
 		}
-		
 	}
 	if ($right_atom && $right_atom eq '||')
 	{
