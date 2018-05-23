@@ -331,6 +331,9 @@ econf()
 			mv -f CMakeCache.txt.new CMakeCache.txt
 			cat cmake_install.cmake | sed -e "s/^[\ \t]*SET(CMAKE_INSTALL_PREFIX\ .*)\ *$/  SET(CMAKE_INSTALL_PREFIX\ \\${PREFIX})/" > cmake_install.cmake.new
 			mv -f cmake_install.cmake.new cmake_install.cmake
+			# Since cmake-3.11
+			cat cmake_install.cmake | sed -e "s/^[\ \t]*set(CMAKE_INSTALL_PREFIX\ .*)\ *$/  set(CMAKE_INSTALL_PREFIX\ \\${PREFIX})/" > cmake_install.cmake.new
+			mv -f cmake_install.cmake.new cmake_install.cmake
 		else
 			eerror "cmake failed"
 		fi
