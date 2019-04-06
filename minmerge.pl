@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #######################################################################
-#  Copyright 2014-2017 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2019 Chernov A.A. <valexlin@gmail.com>              #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #
@@ -14,7 +14,7 @@ use warnings;
 use Cwd;
 use Getopt::Long qw/GetOptions Configure/;
 
-use constant MM_VERSION => "0.2.7";
+use constant MM_VERSION => "0.2.8";
 
 # forward function declarations
 sub calc_deps($;$$$);
@@ -298,8 +298,19 @@ setportage_info({bldext => 'xbuild', prefix => $prefix_w32, portdir => $portdir_
 
 if ($s_depclean)
 {
-	print "Sorry, depclean mode not implemented yet!";
-	exit 1;
+	if ($s_help || $s_unmerge || $s_update || $s_oneshot || $s_deep || $s_nodeps || $s_emptytree || $s_buildpkg || $s_usepkg || $s_fetchonly || $s_info)
+	{
+		print "Error: incompatible options!\n";
+		exit 1;
+	}
+	if (scalar(@pkg_atoms) > 0)
+	{
+		print "Error: depclean mode don't have arguments!\n";
+		exit 1;
+	}
+	push(@pkg_atoms, 'world');
+	# force enable deep dependencies scanning...
+	$s_emptytree = 1;
 }
 
 if ($s_usepkg && $s_buildpkg)
@@ -347,7 +358,7 @@ if ($have_set)
 # perform atoms: find appropriate xbuilds
 foreach $pkg_atom (@pkg_atoms)
 {
-	if ($s_unmerge)
+	if ($s_unmerge || $s_depclean)
 	{
 		$xbuild = find_installed_xbuild($pkg_atom);
 		if (defined($xbuild))
@@ -393,7 +404,7 @@ if (scalar(@all_xbuilds) > 1)
 {
 	@all_xbuilds = remove_duplicates(@all_xbuilds);
 }
-check_conflicted_deps(@all_xbuilds);
+check_conflicted_deps(@all_xbuilds) if !$s_depclean;
 
 my $pkg_stat;
 my $xbuild_inst;
@@ -456,6 +467,38 @@ if ($s_usepkg && !$s_unmerge)
 	}
 }
 
+# Find unneeded packages
+if ($s_depclean)
+{
+	my @all_installed_xbuilds = get_all_installed_xbuilds();
+	my @difflist;
+	my ($xbuild1, $xbuild2);
+	my (%xinfo1, %xinfo2, $found);
+
+	foreach $xbuild1 (@all_installed_xbuilds)
+	{
+		$found = undef;
+		%xinfo1 = xbuild_info($xbuild1);
+		foreach $xbuild2 (@all_xbuilds)
+		{
+			%xinfo2 = xbuild_info($xbuild2);
+			if (($xinfo1{cat} eq $xinfo2{cat}) and ($xinfo1{pn} eq $xinfo2{pn}))
+			{
+				$found = 1;
+				last;
+			}
+		}
+		if (!$found)
+		{
+			push(@difflist, $xbuild1);
+		}
+	}
+
+	# force 'unmerge' mode
+	@all_xbuilds = @difflist;
+	$s_unmerge = 1;
+}
+
 # Show information about affected packages
 if (($s_pretend || $s_verbose) && !$s_unmerge)
 {
@@ -515,6 +558,23 @@ if (($s_pretend || $s_verbose) && !$s_unmerge)
 		}
 		$pkg_stat .= ']';
 		print $pkg_stat . " " . $xbuild_info{cat} . '/' . $xbuild_info{pf} . ' ' . $exs_ver_line . "\n";
+	}
+}
+if ($s_unmerge)
+{
+	if (scalar(@all_xbuilds) > 0)
+	{
+		print ">>> These are the packages that would be unmerged:\n\n";
+		foreach $xbuild (@all_xbuilds)
+		{
+			%xbuild_info = xbuild_info($xbuild);
+			print " $xbuild_info{cat}/$xbuild_info{pf}\n";
+		}
+		print "\n";
+	}
+	else
+	{
+		print "Nothing to unmerge!\n";
 	}
 }
 exit 0 if $s_pretend;

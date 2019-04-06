@@ -1,5 +1,5 @@
 #######################################################################
-#  Copyright 2014-2015 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2019 Chernov A.A. <valexlin@gmail.com>              #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #
@@ -56,7 +56,7 @@ BEGIN
 	our @ISA = qw(Exporter);
 	our @EXPORT = qw(setportage_info find_xbuild find_installed_xbuild xbuild_info find_binpkg
 					add_to_world remove_from_world is_in_world
-					get_system_set get_world_set);
+					get_system_set get_world_set get_all_installed_xbuilds);
 }
 
 =over 4
@@ -657,10 +657,26 @@ sub is_in_world($)
 	return $found;
 }
 
+=item C<get_system_set>
+X<get_system_set> 
+
+Retrive list of packages in system set.
+Return array with packages list.
+
+=cut
+
 sub get_system_set()
 {
 	return @system_set;
 }
+
+=item C<get_world_set>
+X<get_world_set> 
+
+Retrive list of packages in world set.
+Return array with packages list.
+
+=cut
 
 sub get_world_set()
 {
@@ -677,6 +693,72 @@ sub get_world_set()
 		close($fh);
 	}
 	return @packages;
+}
+
+=item C<get_all_installed_xbuilds>
+X<get_all_installed_xbuilds> 
+
+Retrive list of all installed packages.
+Return array with packages list.
+
+=cut
+
+sub get_all_installed_xbuilds()
+{
+	my $dbpkgdir = $portage_info{metadata};
+	my $xbuild_ext = $portage_info{bldext};
+	my @reslist;
+	my ($dh_p, $dir_p_ent, $ent_p_mode);
+	my ($dh, $dirname, $dir_ent, $ent_mode);
+	my ($xbuild, @xbuild_stat);
+
+		if (opendir($dh_p, $dbpkgdir))
+		{
+			$dir_p_ent = readdir($dh_p);
+			while ($dir_p_ent)
+			{
+				(undef,undef,$ent_p_mode,undef,undef,undef,undef,undef,undef,undef,undef,undef,undef) = stat($dbpkgdir . "/" . $dir_p_ent);
+				if (S_ISDIR($ent_p_mode))
+				{
+					if (!($dir_p_ent =~ m/^\..*$/))
+					{
+						$dirname = $dbpkgdir . "/" . $dir_p_ent;
+						if (opendir($dh, $dirname))
+						{
+							$dir_ent = readdir($dh);
+							while ($dir_ent)
+							{
+								(undef,undef,$ent_mode,undef,undef,undef,undef,undef,undef,undef,undef,undef,undef) = stat($dirname . "/" . $dir_ent);
+								if (S_ISDIR($ent_mode))
+								{
+									if (!($dir_ent =~ m/^\..*$/))
+									{
+										$xbuild = $dirname . "/" . $dir_ent . "/" . $dir_ent . '.' . $portage_info{bldext};
+										@xbuild_stat = stat($xbuild);
+										if (scalar(@xbuild_stat) > 0)
+										{
+											# TODO: validate xbuild filename...
+											push (@reslist, $xbuild);
+										}
+									}
+								}
+								$dir_ent = readdir($dh);
+							}
+							closedir($dh);
+						}
+					}
+				}
+				$dir_p_ent = readdir($dh_p);
+			}
+			closedir($dh_p);
+		}
+		else
+		{
+			print "No such file or directory: $dbpkgdir\n";
+			return @reslist;
+		}
+	
+	return @reslist;
 }
 
 1;
