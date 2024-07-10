@@ -208,11 +208,11 @@ epatch()
 	case $1 in
 		*.gz)
 			tmppatch="${TMPDIR}/._patch"
-			gunzip -fcd $f > $tmppatch
+			gunzip -fcd "$f" > $tmppatch
 			;;
 		*.bz2)
 			tmppatch="${TMPDIR}/._patch"
-			bunzip2 -fcd $f > $tmppatch
+			bunzip2 -fcd "$f" > $tmppatch
 			;;
 	esac
 	if [ -n "${tmppatch}" ]
@@ -388,12 +388,19 @@ econf()
 
 emake()
 {
+	local _v_opts=
+	if [ "x${USE_CMAKE}" = "xyes" ]
+	then
+		_v_opts="VERBOSE=1"
+	else
+		_v_opts="V=1"
+	fi
 	#if [ "x$1" = "xnoopts" ]
 	#then
 	#	make
 	#else
-		echo " * make ${MAKEOPTS} $*"
-		eval make ${MAKEOPTS} $*
+		echo " * make ${MAKEOPTS} ${_v_opts} $*"
+		eval make ${MAKEOPTS} ${_v_opts} $*
 	#fi
 	if [ $? -eq 0 ]
 	then
