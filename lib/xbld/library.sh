@@ -388,20 +388,24 @@ econf()
 
 emake()
 {
-	local _v_opts=
 	if [ "x${USE_CMAKE}" = "xyes" ]
 	then
-		_v_opts="VERBOSE=1"
+		local _jobs=`echo "${MAKEOPTS}" | sed -e 's/^-j\ *\(.*\)$/\1/'`
+		if [ "x${_jobs}" = "x" ]
+		then
+			_jobs=1
+		fi
+		echo " * cmake --build . --parallel ${_jobs} --verbose $*"
+		cmake --build . --parallel ${_jobs} --verbose $*
 	else
-		_v_opts="V=1"
+		#if [ "x$1" = "xnoopts" ]
+		#then
+		#	make
+		#else
+			echo " * make ${MAKEOPTS} V=1 $*"
+			eval make ${MAKEOPTS} V=1 $*
+		#fi
 	fi
-	#if [ "x$1" = "xnoopts" ]
-	#then
-	#	make
-	#else
-		echo " * make ${MAKEOPTS} ${_v_opts} $*"
-		eval make ${MAKEOPTS} ${_v_opts} $*
-	#fi
 	if [ $? -eq 0 ]
 	then
 		eend "make successfull."
@@ -413,11 +417,16 @@ emake()
 emake_install()
 {
 	mmkdir "${INSTDIR}"
-	if [ "x$1" == "x" ]
+	if [ "x${USE_CMAKE}" = "xyes" ]
 	then
-		make DESTDIR="${INSTDIR}" install
+		cmake --install . --verbose --prefix "${INSTDIR}${PREFIX}"
 	else
-		make $* install
+		if [ "x$1" == "x" ]
+		then
+			make DESTDIR="${INSTDIR}" V=1 install
+		else
+			make $* install
+		fi
 	fi
 	if [ $? -eq 0 ]
 	then
