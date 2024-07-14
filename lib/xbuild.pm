@@ -1,4 +1,4 @@
-# Copyright 2010-2017 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2010-2017,2024 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -231,6 +231,18 @@ sub get_depends($)
 	else
 	{
 		@depends = get_xbuild_vars($xbuild, 'DEPEND', 'RDEPEND');
+		# Automatically add "dev-util/cmake" and "dev-util/ninja" dependencies if required
+		my @cmake_vars = get_xbuild_vars($xbuild, 'USE_CMAKE', 'CMAKE_GENERATOR');
+		my $need_cmake = $cmake_vars[0];
+		my $cmake_generator = $cmake_vars[1];
+		if ("$need_cmake" eq "yes")
+		{
+			push(@depends, "dev-util/cmake");
+			if ("$cmake_generator" eq "Ninja")
+			{
+				push(@depends, "dev-util/ninja");
+			}
+		}
 		$_depends_cache{$xbuild} = \@depends;
 	}
 	return @depends;
