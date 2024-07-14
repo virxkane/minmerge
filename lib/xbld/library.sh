@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2010-2017 Chernov A.A. <valexlin@gmail.com>
+# Copyright 2010-2024 Chernov A.A. <valexlin@gmail.com>
 # This is a part of mingw-portage project: 
 # http://sourceforge.net/projects/mingwportage/
 # Distributed under the terms of the GNU General Public License v3
@@ -8,6 +8,8 @@
 # Also:
 # following variables must be declared in xbuild file
 #  SRC_URI
+# Optional variables:
+#  USE_CMAKE, CMAKE_GENERATOR
 
 # In xbld.pl writen following variables:
 # CATEGORY
@@ -318,8 +320,13 @@ econf()
 	# now we already in build dir, see part "into_builddir.sh"
 	if [ "x${USE_CMAKE}" = "xyes" ]
 	then
-		eval echo cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} $* "../${CMAKE_SOURCES_DIR}" > ${WORKDIR_TEMP}/CONFIGURE
-		cmake -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} $* "../${CMAKE_SOURCES_DIR}"
+		local _gen=${CMAKE_GENERATOR}
+		if [ "x${_gen}" = "x" ]
+		then
+			_gen="MSYS Makefiles"
+		fi
+		eval echo cmake -G "${_gen}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} --log-level=STATUS $* "../${CMAKE_SOURCES_DIR}" > ${WORKDIR_TEMP}/CONFIGURE
+		cmake -G "${_gen}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} --log-level=STATUS $* "../${CMAKE_SOURCES_DIR}"
 		if [ $? -eq 0 ]
 		then
 			einfo "cmake successfull"
