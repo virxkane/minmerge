@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #######################################################################
-#  Copyright 2014-2017 Chernov A.A. <valexlin@gmail.com>              #
+#  Copyright 2014-2017,2026 Aleksey Chernov <valexlin@gmail.com>      #
 #  This is a part of mingw-portage project:                           #
 #  http://sourceforge.net/projects/mingwportage/                      #
 #  Distributed under the terms of the GNU General Public License v3   #
@@ -156,6 +156,8 @@ $ENV{OPENSSL_CONF}=$prefix_w32 . "/etc/ssl/openssl.cnf";
 $ENV{SSL_CERT_DIR}=$prefix_w32 . "/etc/ssl/certs";
 # Override environment variable PYTHONHOME if it set incorrectly
 $ENV{PYTHONHOME}=$prefix_w32;
+# Disable prefix path conversions in msys2 shell
+$ENV{MSYS2_ARG_CONV_EXCL}="--prefix=;-DCMAKE_INSTALL_PREFIX=";
 
 # main
 my $xbuild;
