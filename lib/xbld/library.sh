@@ -326,7 +326,7 @@ econf()
 			_gen="MSYS Makefiles"
 		fi
 		eval echo cmake -G "${_gen}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} --log-level=STATUS $* "../${CMAKE_SOURCES_DIR}" > ${WORKDIR_TEMP}/CONFIGURE
-		cmake -G "${_gen}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} --log-level=STATUS $* "../${CMAKE_SOURCES_DIR}"
+		cmake -G "${_gen}" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${PREFIX} --log-level=STATUS $* "${WORKDIR}/${CMAKE_SOURCES_DIR}"
 		if [ $? -eq 0 ]
 		then
 			einfo "cmake successfull"
